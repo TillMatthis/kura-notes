@@ -339,5 +339,62 @@ export async function registerContentRoutes(
     }
   );
 
+  /**
+   * DELETE /api/content/:id
+   * Delete content and associated file
+   */
+  fastify.delete<{ Params: { id: string } }>(
+    '/api/content/:id',
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      _reply: FastifyReply
+    ): Promise<{ success: true; message: string; timestamp: string }> => {
+      const { id } = request.params;
+
+      logger.debug('Content deletion request', { id });
+
+      // Check if content exists
+      const metadata = db.getContentById(id);
+      if (!metadata) {
+        logger.warn('Content not found for deletion', { id });
+        throw ApiErrors.notFound('Content not found');
+      }
+
+      try {
+        // Delete file and metadata using FileStorageService
+        const result = await fileStorage.deleteFile(id);
+
+        if (!result.success) {
+          logger.error('Failed to delete content', {
+            id,
+            error: result.error,
+          });
+          throw ApiErrors.storageError(result.error || 'Failed to delete content');
+        }
+
+        logger.info('Content deleted successfully', {
+          id,
+          contentType: metadata.content_type,
+        });
+
+        return {
+          success: true,
+          message: 'Content deleted successfully',
+          timestamp: new Date().toISOString(),
+        };
+      } catch (error) {
+        // If it's already an API error, re-throw it
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
+        logger.error('Unexpected error deleting content', { error, id });
+        throw ApiErrors.storageError(
+          error instanceof Error ? error.message : 'Failed to delete content'
+        );
+      }
+    }
+  );
+
   logger.info('Content retrieval routes registered');
 }
