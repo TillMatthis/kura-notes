@@ -59,7 +59,7 @@
           </div>
 
           <!-- Filters (Collapsed by default) -->
-          <details style="margin-top: var(--spacing-lg);">
+          <details style="margin-top: var(--spacing-lg);" id="filters-details">
             <summary style="cursor: pointer; font-weight: 500; color: var(--text-primary); margin-bottom: var(--spacing-md);">
               Advanced Filters
             </summary>
@@ -116,9 +116,26 @@
                   placeholder="work, personal (comma-separated)"
                 >
               </div>
+
+              <!-- Clear Filters Button -->
+              <div class="form-group" style="grid-column: 1 / -1; margin-top: var(--spacing-md);">
+                <button type="button" class="btn btn-secondary" id="clear-filters-btn">
+                  Clear Filters
+                </button>
+              </div>
             </div>
           </details>
         </form>
+      </div>
+
+      <!-- Loading State -->
+      <div id="loading-state" class="hidden">
+        <div class="card">
+          <div style="padding: var(--spacing-2xl); text-align: center;">
+            <div class="loading-spinner" style="margin: 0 auto var(--spacing-lg);"></div>
+            <p class="text-muted">Searching...</p>
+          </div>
+        </div>
       </div>
 
       <!-- Search Results -->
@@ -162,10 +179,8 @@
           <li>Search is semantic - it understands context and meaning</li>
           <li>Use filters to narrow down results by type, date, or tags</li>
           <li>Keyboard shortcut: Press <kbd>/</kbd> to focus search</li>
+          <li>Results are sorted by relevance - the most similar items appear first</li>
         </ul>
-        <p class="text-muted mt-3" style="font-size: 0.875rem;">
-          Note: Vector search will be available once Task 2.x is completed. For now, this is a placeholder.
-        </p>
       </div>
     </div>
   </main>
@@ -188,8 +203,104 @@
     const searchResults = document.getElementById('search-results');
     const emptyState = document.getElementById('empty-state');
     const noResults = document.getElementById('no-results');
+    const loadingState = document.getElementById('loading-state');
     const resultsContainer = document.getElementById('results-container');
     const resultsCount = document.getElementById('results-count');
+
+    // Display search results
+    function displaySearchResults(response) {
+      const { results, searchMethod, appliedFilters } = response;
+
+      // Update results count
+      const count = results.length;
+      const methodText = searchMethod === 'vector' ? 'Semantic Search' :
+                         searchMethod === 'fts' ? 'Keyword Search' :
+                         'Combined Search';
+      resultsCount.textContent = `${count} result${count !== 1 ? 's' : ''} found (${methodText})`;
+
+      // Build results HTML
+      const resultsHtml = results.map(result => buildResultItem(result)).join('');
+
+      // Show applied filters if any
+      const filtersHtml = appliedFilters && Object.keys(appliedFilters).length > 0
+        ? buildAppliedFiltersHtml(appliedFilters)
+        : '';
+
+      resultsContainer.innerHTML = `
+        ${filtersHtml}
+        <div class="search-results-list">
+          ${resultsHtml}
+        </div>
+      `;
+    }
+
+    // Build a single result item
+    function buildResultItem(result) {
+      const icon = getContentTypeIcon(result.contentType);
+      const title = escapeHtml(result.title || 'Untitled');
+      const excerpt = escapeHtml(result.excerpt || 'No preview available');
+      const date = formatRelativeTime(result.createdAt);
+      const score = result.score ? (result.score * 100).toFixed(0) : null;
+
+      // Build tags HTML
+      const tagsHtml = result.tags && result.tags.length > 0
+        ? result.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')
+        : '';
+
+      // Build relevance score badge (optional, subtle)
+      const scoreHtml = score !== null
+        ? `<span class="relevance-score" title="Relevance score">${score}%</span>`
+        : '';
+
+      return `
+        <a href="/view.html?id=${result.id}" class="result-item">
+          <div class="result-header">
+            <span class="result-icon">${icon}</span>
+            <h3 class="result-title">${title}</h3>
+            ${scoreHtml}
+          </div>
+          <p class="result-excerpt">${excerpt}</p>
+          <div class="result-meta">
+            <span class="result-date">${date}</span>
+            <span class="result-type">${result.contentType}</span>
+            ${tagsHtml ? `<span class="result-tags">${tagsHtml}</span>` : ''}
+          </div>
+        </a>
+      `;
+    }
+
+    // Build applied filters display
+    function buildAppliedFiltersHtml(filters) {
+      const filterItems = [];
+
+      if (filters.contentType && filters.contentType.length > 0) {
+        filterItems.push(`Type: ${filters.contentType.join(', ')}`);
+      }
+      if (filters.tags && filters.tags.length > 0) {
+        filterItems.push(`Tags: ${filters.tags.join(', ')}`);
+      }
+      if (filters.dateFrom) {
+        filterItems.push(`From: ${new Date(filters.dateFrom).toLocaleDateString()}`);
+      }
+      if (filters.dateTo) {
+        filterItems.push(`To: ${new Date(filters.dateTo).toLocaleDateString()}`);
+      }
+
+      if (filterItems.length === 0) return '';
+
+      return `
+        <div class="applied-filters">
+          <strong>Filters applied:</strong> ${filterItems.join(' • ')}
+        </div>
+      `;
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
 
     // Handle search form submission
     searchForm.addEventListener('submit', async (e) => {
@@ -223,40 +334,49 @@
       if (dateTo) params.set('dateTo', dateTo);
       if (tags.length > 0) params.set('tags', tags.join(','));
 
-      // Disable search button
+      // Show loading state
       searchBtn.disabled = true;
-      searchBtn.innerHTML = '<span class="loading"></span> Searching...';
+      searchBtn.innerHTML = '🔍 Searching...';
 
-      // Hide states
+      // Hide all states and show loading
       emptyState.classList.add('hidden');
       searchResults.classList.add('hidden');
       noResults.classList.add('hidden');
+      loadingState.classList.remove('hidden');
 
       try {
-        // TODO: Task 2.4 - Implement actual search API call
-        // For now, show a message that search is not yet implemented
+        // Call the search API
+        const response = await apiRequest(`/api/search?${params.toString()}`);
 
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Hide loading state
+        loadingState.classList.add('hidden');
 
-        // Show placeholder message
-        resultsContainer.innerHTML = `
-          <div class="message message-info">
-            <strong>Search Not Yet Available</strong>
-            <p>The search functionality will be implemented in Task 2.4 (Vector Search Endpoint).</p>
-            <p>Your query: <strong>"${query}"</strong></p>
-          </div>
-        `;
-
-        resultsCount.textContent = 'Search feature coming soon';
-        searchResults.classList.remove('hidden');
+        // Check if we have results
+        if (response.results.length === 0) {
+          noResults.classList.remove('hidden');
+        } else {
+          // Display results
+          displaySearchResults(response);
+          searchResults.classList.remove('hidden');
+        }
 
       } catch (error) {
         console.error('Search failed:', error);
+
+        // Hide loading state
+        loadingState.classList.add('hidden');
+
+        // Show error message
+        const errorMessage = error.message.includes('503')
+          ? 'Search service is currently unavailable. Please ensure OpenAI API key is configured and ChromaDB is running.'
+          : error.message.includes('401')
+          ? 'Authentication failed. Please check your API key.'
+          : error.message || 'Search failed. Please try again.';
+
         resultsContainer.innerHTML = `
           <div class="message message-error">
             <strong>Search Error</strong>
-            <p>${error.message}</p>
+            <p>${escapeHtml(errorMessage)}</p>
           </div>
         `;
         searchResults.classList.remove('hidden');
@@ -266,6 +386,96 @@
       }
     });
 
+    // Clear filters button
+    const clearFiltersBtn = document.getElementById('clear-filters-btn');
+    clearFiltersBtn.addEventListener('click', () => {
+      // Reset all content type checkboxes to checked
+      document.querySelectorAll('input[name="contentType"]').forEach(cb => {
+        cb.checked = true;
+      });
+
+      // Clear date inputs
+      document.getElementById('date-from').value = '';
+      document.getElementById('date-to').value = '';
+
+      // Clear tags input
+      document.getElementById('filter-tags').value = '';
+    });
+
+    // Recent searches functionality
+    const RECENT_SEARCHES_KEY = 'kura_recent_searches';
+    const MAX_RECENT_SEARCHES = 5;
+
+    // Save search query to recent searches
+    function saveRecentSearch(query) {
+      if (!query || query.trim().length === 0) return;
+
+      let recentSearches = getRecentSearches();
+
+      // Remove if already exists
+      recentSearches = recentSearches.filter(s => s !== query);
+
+      // Add to beginning
+      recentSearches.unshift(query);
+
+      // Limit to MAX_RECENT_SEARCHES
+      recentSearches = recentSearches.slice(0, MAX_RECENT_SEARCHES);
+
+      // Save to localStorage
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(recentSearches));
+    }
+
+    // Get recent searches from localStorage
+    function getRecentSearches() {
+      try {
+        const searches = localStorage.getItem(RECENT_SEARCHES_KEY);
+        return searches ? JSON.parse(searches) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    // Display recent searches
+    function displayRecentSearches() {
+      const recentSearches = getRecentSearches();
+
+      if (recentSearches.length === 0) return;
+
+      const recentSearchesHtml = `
+        <div class="card mt-4">
+          <h3>Recent Searches</h3>
+          <div class="recent-searches">
+            ${recentSearches.map(query => `
+              <button class="recent-search-item" data-query="${escapeHtml(query)}">
+                🔍 ${escapeHtml(query)}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      // Insert after search form
+      const searchFormCard = document.querySelector('.card');
+      searchFormCard.insertAdjacentHTML('afterend', recentSearchesHtml);
+
+      // Add click handlers
+      document.querySelectorAll('.recent-search-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const query = btn.getAttribute('data-query');
+          searchQuery.value = query;
+          searchForm.dispatchEvent(new Event('submit'));
+        });
+      });
+    }
+
+    // Update search form submission to save recent searches
+    searchForm.addEventListener('submit', (e) => {
+      const query = searchQuery.value.trim();
+      if (query) {
+        saveRecentSearch(query);
+      }
+    }, true); // Use capture phase to ensure this runs before the main handler
+
     // Keyboard shortcut: / to focus search
     document.addEventListener('keydown', (e) => {
       if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
@@ -274,10 +484,13 @@
       }
     });
 
-    // Auto-focus on mobile
+    // Initialize page
     if (window.innerWidth > 768) {
       searchQuery.focus();
     }
+
+    // Display recent searches on page load
+    displayRecentSearches();
   </script>
 </body>
 </html>
