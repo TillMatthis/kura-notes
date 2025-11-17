@@ -21,6 +21,7 @@
           <li><a href="/create.html" class="nav-link">Create Note</a></li>
           <li><a href="/upload.html" class="nav-link">Upload File</a></li>
           <li><a href="/search.html" class="nav-link">Search</a></li>
+          <li><a href="/tags.html" class="nav-link">Tags</a></li>
         </ul>
       </nav>
     </div>
@@ -115,6 +116,10 @@
                   class="form-input"
                   placeholder="work, personal (comma-separated)"
                 >
+                <span class="form-help">Click tags in search results to filter, or type here</span>
+                <!-- Active tag filters display -->
+                <div id="active-tag-filters" style="margin-top: var(--spacing-sm); display: none; gap: var(--spacing-xs); flex-wrap: wrap;">
+                </div>
               </div>
 
               <!-- Clear Filters Button -->
@@ -245,9 +250,9 @@
       const date = formatRelativeTime(result.createdAt);
       const score = result.score ? (result.score * 100).toFixed(0) : null;
 
-      // Build tags HTML
+      // Build tags HTML (clickable to filter)
       const tagsHtml = result.tags && result.tags.length > 0
-        ? result.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')
+        ? result.tags.map(tag => `<span class="tag tag-clickable" data-tag="${escapeHtml(tag)}" style="cursor: pointer;" title="Click to filter by this tag">${escapeHtml(tag)}</span>`).join('')
         : '';
 
       // Build relevance score badge (optional, subtle)
@@ -423,9 +428,123 @@
       document.getElementById('date-from').value = '';
       document.getElementById('date-to').value = '';
 
-      // Clear tags input
+      // Clear tags input and active filters
       document.getElementById('filter-tags').value = '';
+      clearActiveTagFilters();
     });
+
+    // Active tag filters management
+    const activeTagFiltersContainer = document.getElementById('active-tag-filters');
+    const filterTagsInput = document.getElementById('filter-tags');
+    let activeTagFilters = new Set();
+
+    /**
+     * Add a tag to active filters
+     */
+    function addTagFilter(tag) {
+      if (!tag || tag.trim().length === 0) return;
+
+      const normalizedTag = tag.trim();
+      activeTagFilters.add(normalizedTag);
+      updateActiveTagFiltersDisplay();
+      updateFilterTagsInput();
+    }
+
+    /**
+     * Remove a tag from active filters
+     */
+    function removeTagFilter(tag) {
+      activeTagFilters.delete(tag);
+      updateActiveTagFiltersDisplay();
+      updateFilterTagsInput();
+    }
+
+    /**
+     * Clear all active tag filters
+     */
+    function clearActiveTagFilters() {
+      activeTagFilters.clear();
+      updateActiveTagFiltersDisplay();
+      updateFilterTagsInput();
+    }
+
+    /**
+     * Update the visual display of active tag filters
+     */
+    function updateActiveTagFiltersDisplay() {
+      if (activeTagFilters.size === 0) {
+        activeTagFiltersContainer.style.display = 'none';
+        activeTagFiltersContainer.innerHTML = '';
+        return;
+      }
+
+      activeTagFiltersContainer.style.display = 'flex';
+      activeTagFiltersContainer.innerHTML = Array.from(activeTagFilters)
+        .map(tag => `
+          <span class="active-tag-filter" style="
+            display: inline-flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            padding: var(--spacing-xs) var(--spacing-sm);
+            background-color: var(--accent-color);
+            color: white;
+            border-radius: var(--radius-sm);
+            font-size: 0.875rem;
+            font-weight: 500;
+          ">
+            ${escapeHtml(tag)}
+            <button
+              type="button"
+              class="remove-tag-filter"
+              data-tag="${escapeHtml(tag)}"
+              style="
+                background: none;
+                border: none;
+                color: white;
+                cursor: pointer;
+                padding: 0;
+                margin: 0;
+                font-size: 1rem;
+                line-height: 1;
+                opacity: 0.8;
+              "
+              title="Remove filter"
+            >×</button>
+          </span>
+        `).join('');
+
+      // Add click handlers for remove buttons
+      activeTagFiltersContainer.querySelectorAll('.remove-tag-filter').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tag = btn.getAttribute('data-tag');
+          removeTagFilter(tag);
+        });
+      });
+    }
+
+    /**
+     * Update the hidden filter-tags input field
+     */
+    function updateFilterTagsInput() {
+      filterTagsInput.value = Array.from(activeTagFilters).join(', ');
+    }
+
+    /**
+     * Handle clicks on tags in search results
+     */
+    function handleTagClick(e) {
+      if (e.target.classList.contains('tag-clickable')) {
+        e.preventDefault();
+        const tag = e.target.getAttribute('data-tag');
+        addTagFilter(tag);
+
+        // Automatically trigger search with new filter
+        searchForm.dispatchEvent(new Event('submit'));
+      }
+    }
+
+    // Add event listener for tag clicks (use event delegation)
+    resultsContainer.addEventListener('click', handleTagClick);
 
     // Recent searches functionality
     const RECENT_SEARCHES_KEY = 'kura_recent_searches';
@@ -512,6 +631,27 @@
     // Initialize page
     if (window.innerWidth > 768) {
       searchQuery.focus();
+    }
+
+    // Check for tag URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const tagParam = urlParams.get('tag');
+    if (tagParam) {
+      // Add tag to active filters
+      addTagFilter(tagParam);
+
+      // Open filters section
+      document.getElementById('filters-details').setAttribute('open', '');
+
+      // Set a default search query if none provided
+      if (!searchQuery.value || searchQuery.value.trim().length === 0) {
+        searchQuery.value = '*';
+      }
+
+      // Automatically trigger search
+      setTimeout(() => {
+        searchForm.dispatchEvent(new Event('submit'));
+      }, 100);
     }
 
     // Display recent searches on page load

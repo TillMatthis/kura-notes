@@ -21,6 +21,7 @@
           <li><a href="/create.html" class="nav-link">Create Note</a></li>
           <li><a href="/upload.html" class="nav-link">Upload File</a></li>
           <li><a href="/search.html" class="nav-link">Search</a></li>
+          <li><a href="/tags.html" class="nav-link">Tags</a></li>
         </ul>
       </nav>
     </div>
@@ -135,6 +136,7 @@
 
   <!-- Scripts -->
   <script src="/js/main.js"></script>
+  <script src="/js/tag-autocomplete.js"></script>
   <script>
     const form = document.getElementById('create-note-form');
     const submitBtn = document.getElementById('submit-btn');
@@ -145,6 +147,16 @@
     const contentTextarea = document.getElementById('content');
     const annotationTextarea = document.getElementById('annotation');
     const tagsInput = document.getElementById('tags');
+
+    // Initialize tag autocomplete
+    let tagAutocomplete = null;
+    if (window.initTagAutocomplete) {
+      tagAutocomplete = initTagAutocomplete(tagsInput, {
+        minChars: 1,
+        maxSuggestions: 10,
+        debounceMs: 200
+      });
+    }
 
     // Error display elements
     const titleError = document.getElementById('title-error');
