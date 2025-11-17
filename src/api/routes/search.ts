@@ -1,7 +1,7 @@
 /**
  * KURA Notes - Search Routes
  *
- * Endpoints for vector-based semantic search
+ * Endpoints for semantic search with FTS fallback
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger.js';
 import { DatabaseService } from '../../services/database/database.service.js';
 import { EmbeddingService } from '../../services/embeddingService.js';
 import { VectorStoreService } from '../../services/vectorStore.js';
+import { SearchService } from '../../services/searchService.js';
 import { ApiErrors } from '../types/errors.js';
 import type { ContentType } from '../../models/content.js';
 
@@ -37,6 +38,7 @@ interface SearchResponse {
   results: SearchResultItem[];
   totalResults: number;
   query: string;
+  searchMethod: 'vector' | 'fts' | 'combined';
   timestamp: string;
 }
 
@@ -71,7 +73,7 @@ const searchSchema = {
   response: {
     200: {
       type: 'object',
-      required: ['results', 'totalResults', 'query', 'timestamp'],
+      required: ['results', 'totalResults', 'query', 'searchMethod', 'timestamp'],
       properties: {
         results: {
           type: 'array',
@@ -99,41 +101,12 @@ const searchSchema = {
         },
         totalResults: { type: 'number' },
         query: { type: 'string' },
+        searchMethod: { type: 'string', enum: ['vector', 'fts', 'combined'] },
         timestamp: { type: 'string', format: 'date-time' },
       },
     },
   },
 };
-
-/**
- * Generate excerpt from content
- * Takes first 200 characters or uses annotation if available
- */
-function generateExcerpt(
-  extractedText: string | null,
-  annotation: string | null,
-  contentType: ContentType
-): string {
-  // For images and PDFs, prefer annotation
-  if (contentType === 'image' || contentType === 'pdf') {
-    if (annotation && annotation.trim()) {
-      return annotation.length > 200 ? annotation.substring(0, 200) + '...' : annotation;
-    }
-  }
-
-  // Try annotation first
-  if (annotation && annotation.trim()) {
-    return annotation.length > 200 ? annotation.substring(0, 200) + '...' : annotation;
-  }
-
-  // Fall back to extracted text
-  if (extractedText && extractedText.trim()) {
-    return extractedText.length > 200 ? extractedText.substring(0, 200) + '...' : extractedText;
-  }
-
-  // Default fallback
-  return `[${contentType} content - no excerpt available]`;
-}
 
 /**
  * Register search routes
@@ -144,9 +117,12 @@ export async function registerSearchRoutes(
   embeddingService: EmbeddingService,
   vectorStore: VectorStoreService
 ): Promise<void> {
+  // Create search service instance
+  const searchService = new SearchService(db, embeddingService, vectorStore);
+
   /**
    * GET /api/search
-   * Search for content using natural language query
+   * Search for content using natural language query with FTS fallback
    */
   fastify.get<{ Querystring: SearchQueryParams }>(
     '/api/search',
@@ -179,85 +155,25 @@ export async function registerSearchRoutes(
       }
 
       try {
-        // Check if embedding service is available
-        if (!embeddingService.isAvailable()) {
-          logger.error('Embedding service not available for search');
-          throw ApiErrors.serviceUnavailable('Embedding service');
-        }
-
-        // Generate embedding for the search query
-        logger.debug('Generating embedding for search query', { query: trimmedQuery });
-        const embeddingResult = await embeddingService.generateEmbedding(trimmedQuery);
-
-        // Search ChromaDB using the query embedding
-        logger.debug('Querying vector store', { limit });
-        const vectorResults = await vectorStore.queryByEmbedding(embeddingResult.embedding, limit);
-
-        logger.info('Vector search completed', {
+        // Use the unified search service with automatic fallback
+        const searchResult = await searchService.search({
           query: trimmedQuery,
-          resultsFound: vectorResults.length,
           limit,
+          useFallback: true, // Enable FTS fallback
+          combineResults: false, // Don't combine for now (can be made configurable)
         });
 
-        // If no results found, return empty array
-        if (vectorResults.length === 0) {
-          logger.debug('No results found for query', { query: trimmedQuery });
-          return {
-            results: [],
-            totalResults: 0,
-            query: trimmedQuery,
-            timestamp: new Date().toISOString(),
-          };
-        }
-
-        // Retrieve full metadata from SQLite for each result
-        const searchResults: SearchResultItem[] = [];
-
-        for (const vectorResult of vectorResults) {
-          const content = db.getContentById(vectorResult.id);
-
-          // Skip if content not found in database (edge case: deleted after indexing)
-          if (!content) {
-            logger.warn('Content found in vector store but not in database', {
-              id: vectorResult.id,
-            });
-            continue;
-          }
-
-          // Generate excerpt
-          const excerpt = generateExcerpt(
-            content.extracted_text,
-            content.annotation,
-            content.content_type
-          );
-
-          // Build search result item
-          searchResults.push({
-            id: content.id,
-            title: content.title,
-            excerpt,
-            contentType: content.content_type,
-            relevanceScore: vectorResult.score,
-            metadata: {
-              tags: content.tags,
-              createdAt: content.created_at,
-              updatedAt: content.updated_at,
-              source: content.source,
-              annotation: content.annotation,
-            },
-          });
-        }
-
-        // Results are already sorted by relevance score (ChromaDB returns sorted by similarity)
-        logger.info('Search results prepared', {
+        logger.info('Search completed successfully', {
           query: trimmedQuery,
-          totalResults: searchResults.length,
+          searchMethod: searchResult.searchMethod,
+          totalResults: searchResult.totalResults,
         });
 
         return {
-          results: searchResults,
-          totalResults: searchResults.length,
+          results: searchResult.results,
+          totalResults: searchResult.totalResults,
           query: trimmedQuery,
+          searchMethod: searchResult.searchMethod,
           timestamp: new Date().toISOString(),
         };
       } catch (error) {
