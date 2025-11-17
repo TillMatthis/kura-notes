@@ -2,7 +2,7 @@
 
 **Project:** KURA Notes MVP
 **Timeline:** 2-4 weeks
-**Last Updated:** 2025-11-17 (Tasks 3.6-3.8 Complete - 64% overall progress!)
+**Last Updated:** 2025-11-17 (Task 3.9 Complete - 67% overall progress!)
 
 ## How to Use This Checklist
 
@@ -17,10 +17,10 @@
 
 **Phase 1 (Foundation):** 7/12 tasks complete
 **Phase 2 (Search):** 8/8 tasks complete ✅
-**Phase 3 (Complete MVP):** 8/10 tasks complete
+**Phase 3 (Complete MVP):** 9/10 tasks complete
 **Phase 4 (Polish & Deploy):** 0/6 tasks complete
 
-**Overall Progress:** 23/36 tasks complete (64%)
+**Overall Progress:** 24/36 tasks complete (67%)
 
 ---
 
@@ -1428,40 +1428,59 @@
 ---
 
 ### Task 3.9: Loading States & UX Polish
-**Branch:** `task/029-loading-states`  
-**Estimated Time:** 2 hours  
+**Branch:** `claude/kura-notes-task-3-9-01NDPbD6zH7gyvBJpp6h4v8U`
+**Estimated Time:** 2 hours
 **Depends On:** Task 2.7
 
-- [ ] Add loading states to all async operations
-  - Capture
-  - Search
-  - Upload
-  - Delete
-- [ ] Add loading indicators
-  - Spinners
-  - Progress bars
-  - Skeleton screens (optional)
-- [ ] Add success feedback
-  - Toast notifications
-  - Success messages
-  - Animations (subtle)
-- [ ] Improve form UX
-  - Disable submit while loading
-  - Show validation errors inline
-  - Clear forms after success
-- [ ] Add keyboard shortcuts
-  - Search: /
-  - New note: n
-  - Escape to close modals
+- [x] Add loading states to all async operations ✅
+  - Capture (already implemented in Task 1.9)
+  - Search (already implemented in Task 2.7)
+  - Upload (already implemented in Task 1.11)
+  - Delete (already implemented in Task 1.12)
+- [x] Add loading indicators ✅
+  - Spinners (implemented across all pages)
+  - Progress bars (upload page)
+  - Skeleton screens (deferred - not needed for MVP)
+- [x] Add success feedback ✅
+  - Toast notifications (new reusable Toast system in main.js)
+  - Success messages (existing across pages)
+  - Animations (subtle slide-in/out for toasts)
+- [x] Improve form UX ✅
+  - Disable submit while loading (already implemented)
+  - Show validation errors inline (already implemented in Tasks 1.9, 3.5)
+  - Clear forms after success (redirects to home - better UX)
+- [x] Add keyboard shortcuts ✅
+  - Search: `/` (global - works from any page)
+  - New note: `n` (global - works from any page)
+  - Escape to close modals (global - works for all modals)
+  - Cmd/Ctrl+Enter to save (already in create.html)
 
 **Acceptance Criteria:**
-- Loading states everywhere
-- User feedback on actions
-- Forms feel responsive
-- Keyboard shortcuts work
-- No confusing states
+- ✅ Loading states everywhere (all async operations show loading indicators)
+- ✅ User feedback on actions (new Toast system + existing messages)
+- ✅ Forms feel responsive (submit buttons disable, inline validation, clear feedback)
+- ✅ Keyboard shortcuts work (global shortcuts added to main.js)
+- ✅ No confusing states (clear loading, error, and success states throughout)
 
-**Completion Date:** _________
+**Completion Date:** 2025-11-17
+
+**Notes:**
+- Created comprehensive **Toast notification system** (public/js/main.js):
+  - Supports success, error, warning, info types
+  - Auto-dismiss with configurable duration
+  - Hover to pause, click to dismiss
+  - Smooth slide-in/out animations
+  - Mobile responsive
+  - Global window.Toast API: Toast.success(), Toast.error(), Toast.warning(), Toast.info()
+- Added **global keyboard shortcuts** (public/js/main.js):
+  - `/` - Opens search page (or focuses search input if already on search page)
+  - `n` - Navigates to create note page
+  - `Esc` - Closes any open modals globally
+  - Shortcuts respect user input focus (don't trigger while typing)
+- Added **keyboard shortcut hints** to home page (public/index.html)
+- Added **kbd tag styling** to main.css for clean keyboard shortcut display
+- Most loading states and form UX improvements were already implemented in previous tasks
+- This task primarily added the Toast system and global keyboard shortcuts as polish
 
 ---
 
