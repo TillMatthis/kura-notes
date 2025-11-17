@@ -1,0 +1,37 @@
+# ============================================
+# Development Dockerfile
+# ============================================
+FROM node:20-alpine AS development
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init curl
+
+# Set working directory
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S kura && \
+    adduser -S kura -u 1001
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm ci
+
+# Create data directory and set permissions
+RUN mkdir -p /data/content /data/metadata /data/vectors /data/logs && \
+    chown -R kura:kura /data /app
+
+# Switch to non-root user
+USER kura
+
+# Expose API port and debugger port
+EXPOSE 3000 9229
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Start development server with hot reload
+CMD ["npm", "run", "dev"]

@@ -156,9 +156,171 @@ Expected response:
 
 ## Deployment
 
-### Using Docker Compose
+### Using Docker Compose (Recommended)
 
-Full deployment instructions will be available after Task 1.2 (Docker Configuration) is complete.
+The easiest way to deploy KURA Notes is using Docker Compose, which automatically sets up both the API and ChromaDB services.
+
+#### Production Deployment
+
+1. **Clone and configure:**
+
+```bash
+git clone https://github.com/TillMatthis/kura-notes.git
+cd kura-notes
+cp .env.example .env
+```
+
+2. **Edit `.env` with your configuration:**
+
+```bash
+# Required: Set a secure API key
+API_KEY=$(openssl rand -hex 32)
+
+# Required: Add your OpenAI API key
+OPENAI_API_KEY=sk-your-actual-api-key-here
+
+# Required: Set ChromaDB authentication
+CHROMA_SERVER_AUTH_CREDENTIALS=$(openssl rand -hex 32)
+```
+
+3. **Build and start services:**
+
+```bash
+docker-compose build
+docker-compose up -d
+```
+
+4. **Verify deployment:**
+
+```bash
+# Check if services are running
+docker-compose ps
+
+# Check health endpoint
+curl http://localhost:3000/api/health
+```
+
+5. **View logs:**
+
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f api
+docker-compose logs -f vectordb
+```
+
+#### Development Setup
+
+For local development with hot reload:
+
+1. **Start development environment:**
+
+```bash
+# Copy environment file
+cp .env.example .env
+
+# Edit .env with your keys (API_KEY and OPENAI_API_KEY)
+
+# Start development containers
+docker-compose -f docker-compose.dev.yml up
+```
+
+2. **The development setup includes:**
+   - Hot reload for code changes
+   - Debug port exposed on 9229
+   - Source code mounted as volumes
+   - Development logging (debug level)
+
+#### Docker Commands Reference
+
+```bash
+# Build images
+docker-compose build
+
+# Start services (production)
+docker-compose up -d
+
+# Start services (development)
+docker-compose -f docker-compose.dev.yml up
+
+# Stop services
+docker-compose down
+
+# Stop and remove volumes (⚠️ deletes all data)
+docker-compose down -v
+
+# View logs
+docker-compose logs -f
+
+# Restart a service
+docker-compose restart api
+
+# Execute commands in container
+docker-compose exec api sh
+
+# Check service health
+docker-compose ps
+```
+
+#### Data Persistence
+
+Data is persisted in the following locations:
+
+- **Production:**
+  - API data: `./data` directory (bind mount)
+  - ChromaDB data: `kura-chroma-data` Docker volume
+
+- **Development:**
+  - API data: `./data` directory (bind mount)
+  - ChromaDB data: `kura-chroma-data-dev` Docker volume
+
+#### Backup
+
+To backup your data:
+
+```bash
+# Backup API data (files and SQLite database)
+tar -czf kura-backup-$(date +%Y%m%d).tar.gz data/
+
+# Backup ChromaDB volume
+docker run --rm -v kura-chroma-data:/data -v $(pwd):/backup \
+  alpine tar -czf /backup/chroma-backup-$(date +%Y%m%d).tar.gz /data
+```
+
+#### Troubleshooting
+
+**Services won't start:**
+```bash
+# Check logs
+docker-compose logs
+
+# Check if ports are already in use
+lsof -i :3000
+lsof -i :8000
+```
+
+**ChromaDB connection issues:**
+```bash
+# Verify ChromaDB is healthy
+docker-compose exec vectordb curl http://localhost:8000/api/v1/heartbeat
+
+# Check network connectivity
+docker-compose exec api ping vectordb
+```
+
+**Reset everything:**
+```bash
+# Stop services and remove volumes (⚠️ deletes all data)
+docker-compose down -v
+
+# Remove images
+docker-compose down --rmi all
+
+# Start fresh
+docker-compose up -d
+```
 
 ### On Proxmox
 
@@ -218,13 +380,14 @@ This project is under active development. See `BUILD-CHECKLIST.md` for the compl
 
 ### Completed
 
-- ✅ Project structure and dependencies setup
+- ✅ Project structure and dependencies setup (Task 1.1)
+- ✅ Docker configuration (Task 1.2)
 
 ### In Progress
 
-- 🔄 Docker configuration
 - 🔄 Database schema setup
 - 🔄 File storage service
+- 🔄 API foundation
 
 ### Upcoming
 
