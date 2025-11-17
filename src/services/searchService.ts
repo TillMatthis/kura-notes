@@ -9,7 +9,7 @@ import { DatabaseService } from './database/database.service.js';
 import { EmbeddingService } from './embeddingService.js';
 import { VectorStoreService } from './vectorStore.js';
 import { logger } from '../utils/logger.js';
-import type { Content, ContentType } from '../models/content.js';
+import type { Content, ContentType, SearchFilters } from '../models/content.js';
 
 /**
  * Search result with normalized score
@@ -38,6 +38,7 @@ export interface SearchOptions {
   limit?: number;
   useFallback?: boolean; // Whether to fall back to FTS if vector search fails
   combineResults?: boolean; // Whether to combine both vector and FTS results
+  filters?: SearchFilters; // Optional filters to apply to results
 }
 
 /**
@@ -142,6 +143,83 @@ export class SearchService {
   }
 
   /**
+   * Apply filters to search results
+   * Filters by content type, tags, and date range
+   */
+  private applyFilters(results: SearchResult[], filters: SearchFilters): SearchResult[] {
+    if (!filters || Object.keys(filters).length === 0) {
+      return results;
+    }
+
+    logger.debug('Applying filters to search results', {
+      resultsCount: results.length,
+      filters,
+    });
+
+    let filteredResults = results;
+
+    // Filter by content type
+    if (filters.contentTypes && filters.contentTypes.length > 0) {
+      filteredResults = filteredResults.filter((result) =>
+        filters.contentTypes!.includes(result.contentType)
+      );
+
+      logger.debug('Applied contentType filter', {
+        contentTypes: filters.contentTypes,
+        remainingResults: filteredResults.length,
+      });
+    }
+
+    // Filter by tags (result must have ALL specified tags)
+    if (filters.tags && filters.tags.length > 0) {
+      filteredResults = filteredResults.filter((result) => {
+        const resultTags = result.metadata.tags;
+        return filters.tags!.every((tag) => resultTags.includes(tag));
+      });
+
+      logger.debug('Applied tags filter', {
+        tags: filters.tags,
+        remainingResults: filteredResults.length,
+      });
+    }
+
+    // Filter by date range (created_at)
+    if (filters.dateFrom) {
+      const dateFrom = new Date(filters.dateFrom);
+      filteredResults = filteredResults.filter((result) => {
+        const createdAt = new Date(result.metadata.createdAt);
+        return createdAt >= dateFrom;
+      });
+
+      logger.debug('Applied dateFrom filter', {
+        dateFrom: filters.dateFrom,
+        remainingResults: filteredResults.length,
+      });
+    }
+
+    if (filters.dateTo) {
+      const dateTo = new Date(filters.dateTo);
+      filteredResults = filteredResults.filter((result) => {
+        const createdAt = new Date(result.metadata.createdAt);
+        return createdAt <= dateTo;
+      });
+
+      logger.debug('Applied dateTo filter', {
+        dateTo: filters.dateTo,
+        remainingResults: filteredResults.length,
+      });
+    }
+
+    logger.info('Filters applied', {
+      originalCount: results.length,
+      filteredCount: filteredResults.length,
+      filters,
+    });
+
+    return filteredResults;
+  }
+
+  /**
    * Unified search with automatic fallback
    * Tries vector search first, falls back to FTS if needed
    */
@@ -150,7 +228,7 @@ export class SearchService {
     searchMethod: 'vector' | 'fts' | 'combined';
     totalResults: number;
   }> {
-    const { query, limit = 10, useFallback = true, combineResults = false } = options;
+    const { query, limit = 10, useFallback = true, combineResults = false, filters } = options;
 
     logger.debug('Unified search starting', { query, limit, useFallback, combineResults });
 
@@ -240,10 +318,16 @@ export class SearchService {
       searchMethod,
     }));
 
+    // Apply filters if provided
+    if (filters && Object.keys(filters).length > 0) {
+      finalResults = this.applyFilters(finalResults, filters);
+    }
+
     logger.info('Unified search completed', {
       query,
       searchMethod,
       totalResults: finalResults.length,
+      filtersApplied: filters ? Object.keys(filters).length : 0,
     });
 
     // Log search query

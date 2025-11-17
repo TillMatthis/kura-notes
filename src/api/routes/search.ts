@@ -11,7 +11,7 @@ import { EmbeddingService } from '../../services/embeddingService.js';
 import { VectorStoreService } from '../../services/vectorStore.js';
 import { SearchService } from '../../services/searchService.js';
 import { ApiErrors } from '../types/errors.js';
-import type { ContentType } from '../../models/content.js';
+import type { ContentType, SearchFilters } from '../../models/content.js';
 
 /**
  * Search result item
@@ -39,6 +39,7 @@ interface SearchResponse {
   totalResults: number;
   query: string;
   searchMethod: 'vector' | 'fts' | 'combined';
+  appliedFilters: SearchFilters;
   timestamp: string;
 }
 
@@ -48,6 +49,10 @@ interface SearchResponse {
 interface SearchQueryParams {
   query: string;
   limit?: string; // Query params are always strings
+  contentType?: string; // Comma-separated list of content types
+  tags?: string; // Comma-separated list of tags
+  dateFrom?: string; // ISO 8601 date string
+  dateTo?: string; // ISO 8601 date string
 }
 
 /**
@@ -68,12 +73,28 @@ const searchSchema = {
         pattern: '^[0-9]+$',
         description: 'Maximum number of results (default: 10, max: 50)',
       },
+      contentType: {
+        type: 'string',
+        description: 'Comma-separated list of content types (text, image, pdf, audio)',
+      },
+      tags: {
+        type: 'string',
+        description: 'Comma-separated list of tags to filter by',
+      },
+      dateFrom: {
+        type: 'string',
+        description: 'Filter by created_at >= this ISO 8601 date',
+      },
+      dateTo: {
+        type: 'string',
+        description: 'Filter by created_at <= this ISO 8601 date',
+      },
     },
   },
   response: {
     200: {
       type: 'object',
-      required: ['results', 'totalResults', 'query', 'searchMethod', 'timestamp'],
+      required: ['results', 'totalResults', 'query', 'searchMethod', 'appliedFilters', 'timestamp'],
       properties: {
         results: {
           type: 'array',
@@ -102,11 +123,108 @@ const searchSchema = {
         totalResults: { type: 'number' },
         query: { type: 'string' },
         searchMethod: { type: 'string', enum: ['vector', 'fts', 'combined'] },
+        appliedFilters: {
+          type: 'object',
+          properties: {
+            contentTypes: {
+              type: 'array',
+              items: { type: 'string', enum: ['text', 'image', 'pdf', 'audio'] },
+            },
+            tags: { type: 'array', items: { type: 'string' } },
+            dateFrom: { type: 'string' },
+            dateTo: { type: 'string' },
+          },
+        },
         timestamp: { type: 'string', format: 'date-time' },
       },
     },
   },
 };
+
+/**
+ * Validate and parse filter parameters from query string
+ */
+function parseFilters(params: SearchQueryParams): SearchFilters {
+  const filters: SearchFilters = {};
+
+  // Parse contentType
+  if (params.contentType) {
+    const contentTypes = params.contentType
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    // Validate content types
+    const validTypes: ContentType[] = ['text', 'image', 'pdf', 'audio'];
+    const invalidTypes = contentTypes.filter((t) => !validTypes.includes(t as ContentType));
+
+    if (invalidTypes.length > 0) {
+      throw ApiErrors.validationError(
+        `Invalid content types: ${invalidTypes.join(', ')}. Valid types: ${validTypes.join(', ')}`,
+        { invalidTypes }
+      );
+    }
+
+    if (contentTypes.length > 0) {
+      filters.contentTypes = contentTypes as ContentType[];
+    }
+  }
+
+  // Parse tags
+  if (params.tags) {
+    const tags = params.tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    // Validate tags are non-empty strings
+    if (tags.some((tag) => tag.length === 0)) {
+      throw ApiErrors.validationError('Tags cannot be empty strings');
+    }
+
+    if (tags.length > 0) {
+      filters.tags = tags;
+    }
+  }
+
+  // Parse dateFrom
+  if (params.dateFrom) {
+    const dateFrom = new Date(params.dateFrom);
+    if (isNaN(dateFrom.getTime())) {
+      throw ApiErrors.validationError(
+        `Invalid dateFrom format: ${params.dateFrom}. Expected ISO 8601 date string`,
+        { dateFrom: params.dateFrom }
+      );
+    }
+    filters.dateFrom = params.dateFrom;
+  }
+
+  // Parse dateTo
+  if (params.dateTo) {
+    const dateTo = new Date(params.dateTo);
+    if (isNaN(dateTo.getTime())) {
+      throw ApiErrors.validationError(
+        `Invalid dateTo format: ${params.dateTo}. Expected ISO 8601 date string`,
+        { dateTo: params.dateTo }
+      );
+    }
+    filters.dateTo = params.dateTo;
+  }
+
+  // Validate date range
+  if (filters.dateFrom && filters.dateTo) {
+    const from = new Date(filters.dateFrom);
+    const to = new Date(filters.dateTo);
+    if (from > to) {
+      throw ApiErrors.validationError(
+        'dateFrom must be before or equal to dateTo',
+        { dateFrom: filters.dateFrom, dateTo: filters.dateTo }
+      );
+    }
+  }
+
+  return filters;
+}
 
 /**
  * Register search routes
@@ -135,7 +253,7 @@ export async function registerSearchRoutes(
     ): Promise<SearchResponse> => {
       const { query, limit: limitStr } = request.query;
 
-      logger.debug('Search request received', { query, limit: limitStr });
+      logger.debug('Search request received', { query, limit: limitStr, filters: request.query });
 
       // Validate and parse limit parameter
       const limit = limitStr ? parseInt(limitStr, 10) : 10;
@@ -154,6 +272,11 @@ export async function registerSearchRoutes(
         throw ApiErrors.validationError('Search query cannot be empty');
       }
 
+      // Parse and validate filters
+      const filters = parseFilters(request.query);
+
+      logger.debug('Parsed filters', { filters });
+
       try {
         // Use the unified search service with automatic fallback
         const searchResult = await searchService.search({
@@ -161,12 +284,14 @@ export async function registerSearchRoutes(
           limit,
           useFallback: true, // Enable FTS fallback
           combineResults: false, // Don't combine for now (can be made configurable)
+          filters, // Pass filters to search service
         });
 
         logger.info('Search completed successfully', {
           query: trimmedQuery,
           searchMethod: searchResult.searchMethod,
           totalResults: searchResult.totalResults,
+          appliedFilters: filters,
         });
 
         return {
@@ -174,6 +299,7 @@ export async function registerSearchRoutes(
           totalResults: searchResult.totalResults,
           query: trimmedQuery,
           searchMethod: searchResult.searchMethod,
+          appliedFilters: filters,
           timestamp: new Date().toISOString(),
         };
       } catch (error) {
