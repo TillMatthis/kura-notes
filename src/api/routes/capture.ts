@@ -5,9 +5,12 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { MultipartFile } from '@fastify/multipart';
 import { logger } from '../../utils/logger.js';
 import { FileStorageService } from '../../services/fileStorage.js';
 import { ApiErrors } from '../types/errors.js';
+import { getContentTypeFromMime } from '../../utils/fileValidation.js';
+import type { ContentType } from '../../models/content.js';
 
 /**
  * Request body schema for text content capture
@@ -21,6 +24,16 @@ interface CaptureTextRequest {
 }
 
 /**
+ * Metadata from multipart form upload
+ */
+interface FileUploadMetadata {
+  contentType?: ContentType;
+  title?: string;
+  annotation?: string;
+  tags?: string[];
+}
+
+/**
  * Response schema for successful capture
  */
 interface CaptureResponse {
@@ -30,90 +43,22 @@ interface CaptureResponse {
   timestamp: string;
 }
 
+// Note: Schema validation removed to support both JSON and multipart/form-data
+// Validation is now handled within the route handlers
+
 /**
- * Fastify JSON schema for text capture request validation
+ * Validate tags format
  */
-const captureTextSchema = {
-  body: {
-    type: 'object',
-    required: ['content'],
-    properties: {
-      content: {
-        type: 'string',
-        minLength: 1,
-        maxLength: 1000000, // 1MB of text
-        description: 'The text content to capture',
-      },
-      title: {
-        type: 'string',
-        maxLength: 500,
-        description: 'Optional title for the content',
-      },
-      annotation: {
-        type: 'string',
-        maxLength: 5000,
-        description: 'Optional annotation or context',
-      },
-      tags: {
-        type: 'array',
-        items: {
-          type: 'string',
-          minLength: 1,
-          maxLength: 50,
-          pattern: '^[a-zA-Z0-9-_]+$', // Tags can only contain alphanumeric, dash, underscore
-        },
-        maxItems: 20,
-        description: 'Optional tags for categorization',
-      },
-      contentType: {
-        type: 'string',
-        enum: ['text'],
-        default: 'text',
-        description: 'Content type (always text for this endpoint)',
-      },
-    },
-    additionalProperties: false,
-  },
-  response: {
-    200: {
-      type: 'object',
-      required: ['success', 'id', 'message', 'timestamp'],
-      properties: {
-        success: { type: 'boolean', enum: [true] },
-        id: { type: 'string', format: 'uuid' },
-        message: { type: 'string' },
-        timestamp: { type: 'string', format: 'date-time' },
-      },
-    },
-    400: {
-      type: 'object',
-      properties: {
-        error: { type: 'string' },
-        code: { type: 'string' },
-        message: { type: 'string' },
-        timestamp: { type: 'string' },
-      },
-    },
-    401: {
-      type: 'object',
-      properties: {
-        error: { type: 'string' },
-        code: { type: 'string' },
-        message: { type: 'string' },
-        timestamp: { type: 'string' },
-      },
-    },
-    500: {
-      type: 'object',
-      properties: {
-        error: { type: 'string' },
-        code: { type: 'string' },
-        message: { type: 'string' },
-        timestamp: { type: 'string' },
-      },
-    },
-  },
-};
+function validateTags(tags: string[]): void {
+  const tagPattern = /^[a-zA-Z0-9-_]+$/;
+  const invalidTags = tags.filter((tag) => !tagPattern.test(tag));
+  if (invalidTags.length > 0) {
+    logger.warn('Invalid tag format', { invalidTags });
+    throw ApiErrors.validationError(
+      `Invalid tag format: ${invalidTags.join(', ')}. Tags can only contain letters, numbers, dashes, and underscores.`
+    );
+  }
+}
 
 /**
  * Register content capture routes
@@ -124,86 +69,203 @@ export async function registerCaptureRoutes(
 ): Promise<void> {
   /**
    * POST /api/capture
-   * Capture text content and store it
+   * Capture content (text, images, PDFs)
+   * Supports both JSON (text) and multipart/form-data (files)
    */
-  fastify.post<{ Body: CaptureTextRequest }>(
+  fastify.post(
     '/api/capture',
-    {
-      schema: captureTextSchema,
-    },
-    async (
-      request: FastifyRequest<{ Body: CaptureTextRequest }>,
-      _reply: FastifyReply
-    ): Promise<CaptureResponse> => {
-      const { content, title, annotation, tags } = request.body;
-
-      logger.info('Capture request received', {
-        contentType: 'text',
-        hasTitle: !!title,
-        hasAnnotation: !!annotation,
-        tagCount: tags?.length || 0,
-        contentLength: content.length,
-      });
-
-      // Validate content is not empty (after trimming)
-      if (!content || content.trim().length === 0) {
-        logger.warn('Empty content in capture request');
-        throw ApiErrors.validationError('Content cannot be empty');
-      }
-
-      // Validate tags format if provided
-      if (tags && tags.length > 0) {
-        const tagPattern = /^[a-zA-Z0-9-_]+$/;
-        const invalidTags = tags.filter((tag) => !tagPattern.test(tag));
-        if (invalidTags.length > 0) {
-          logger.warn('Invalid tag format', { invalidTags });
-          throw ApiErrors.validationError(
-            `Invalid tag format: ${invalidTags.join(', ')}. Tags can only contain letters, numbers, dashes, and underscores.`
-          );
-        }
-      }
-
-      try {
-        // Save file using file storage service
-        const result = await fileStorage.saveFile({
-          content,
-          contentType: 'text',
-          title,
-          annotation,
-          tags,
-          mimeType: 'text/plain',
-        });
-
-        if (!result.success) {
-          logger.error('Failed to save content', { error: result.error });
-          throw ApiErrors.storageError(result.error || 'Failed to save content');
-        }
-
-        logger.info('Content captured successfully', {
-          id: result.id,
-          filePath: result.filePath,
-        });
-
-        return {
-          success: true,
-          id: result.id!,
-          message: 'Content captured successfully',
-          timestamp: new Date().toISOString(),
-        };
-      } catch (error) {
-        // If it's already an API error, re-throw it
-        if (error && typeof error === 'object' && 'statusCode' in error) {
-          throw error;
-        }
-
-        // Otherwise, wrap it as a storage error
-        logger.error('Unexpected error in capture endpoint', { error });
-        throw ApiErrors.storageError(
-          error instanceof Error ? error.message : 'Unknown error occurred'
-        );
+    async (request: FastifyRequest, _reply: FastifyReply): Promise<CaptureResponse> => {
+      // Check if this is a multipart request (file upload)
+      if (request.isMultipart()) {
+        return await handleFileUpload(request, fileStorage);
+      } else {
+        // Handle JSON text content
+        return await handleTextCapture(request, fileStorage);
       }
     }
   );
 
   logger.info('Capture routes registered');
+}
+
+/**
+ * Handle text content capture (JSON)
+ */
+async function handleTextCapture(
+  request: FastifyRequest,
+  fileStorage: FileStorageService
+): Promise<CaptureResponse> {
+  const { content, title, annotation, tags } = request.body as CaptureTextRequest;
+
+  logger.info('Text capture request received', {
+    contentType: 'text',
+    hasTitle: !!title,
+    hasAnnotation: !!annotation,
+    tagCount: tags?.length || 0,
+    contentLength: content?.length || 0,
+  });
+
+  // Validate content is not empty (after trimming)
+  if (!content || content.trim().length === 0) {
+    logger.warn('Empty content in capture request');
+    throw ApiErrors.validationError('Content cannot be empty');
+  }
+
+  // Validate tags format if provided
+  if (tags && tags.length > 0) {
+    validateTags(tags);
+  }
+
+  try {
+    // Save file using file storage service
+    const result = await fileStorage.saveFile({
+      content,
+      contentType: 'text',
+      title,
+      annotation,
+      tags,
+      mimeType: 'text/plain',
+    });
+
+    if (!result.success) {
+      logger.error('Failed to save content', { error: result.error });
+      throw ApiErrors.storageError(result.error || 'Failed to save content');
+    }
+
+    logger.info('Content captured successfully', {
+      id: result.id,
+      filePath: result.filePath,
+    });
+
+    return {
+      success: true,
+      id: result.id!,
+      message: 'Content captured successfully',
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    // If it's already an API error, re-throw it
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      throw error;
+    }
+
+    // Otherwise, wrap it as a storage error
+    logger.error('Unexpected error in capture endpoint', { error });
+    throw ApiErrors.storageError(
+      error instanceof Error ? error.message : 'Unknown error occurred'
+    );
+  }
+}
+
+/**
+ * Handle file upload (multipart/form-data)
+ */
+async function handleFileUpload(
+  request: FastifyRequest,
+  fileStorage: FileStorageService
+): Promise<CaptureResponse> {
+  try {
+    let file: MultipartFile | null = null;
+    const metadata: FileUploadMetadata = {};
+
+    // Parse all multipart parts
+    const parts = request.parts();
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        file = part as MultipartFile;
+      } else if (part.type === 'field') {
+        const fieldName = part.fieldname;
+        const value = (part as any).value;
+
+        if (fieldName === 'metadata') {
+          try {
+            const parsed = JSON.parse(value);
+            Object.assign(metadata, parsed);
+          } catch (e) {
+            logger.warn('Failed to parse metadata field', { value });
+          }
+        }
+      }
+    }
+
+    if (!file) {
+      logger.warn('No file in multipart request');
+      throw ApiErrors.validationError('No file provided');
+    }
+
+    logger.info('File upload request received', {
+      filename: file.filename,
+      mimeType: file.mimetype,
+      encoding: file.encoding,
+      hasMetadata: Object.keys(metadata).length > 0,
+      metadata,
+    });
+
+    // Determine content type from MIME type
+    let contentType: ContentType | undefined = metadata.contentType;
+    if (!contentType) {
+      contentType = getContentTypeFromMime(file.mimetype);
+    }
+
+    if (!contentType) {
+      logger.warn('Unsupported file type', { mimeType: file.mimetype });
+      throw ApiErrors.validationError(
+        `Unsupported file type: ${file.mimetype}. Supported types: JPEG, PNG, PDF`
+      );
+    }
+
+    // Validate tags if provided
+    if (metadata.tags && metadata.tags.length > 0) {
+      validateTags(metadata.tags);
+    }
+
+    // Read file content into buffer
+    const fileBuffer = await file.toBuffer();
+
+    logger.debug('File buffered', {
+      size: fileBuffer.length,
+      contentType,
+    });
+
+    // Save file using file storage service
+    const result = await fileStorage.saveFile({
+      content: fileBuffer,
+      contentType,
+      title: metadata.title,
+      annotation: metadata.annotation,
+      tags: metadata.tags,
+      originalFilename: file.filename,
+      mimeType: file.mimetype,
+    });
+
+    if (!result.success) {
+      logger.error('Failed to save file', { error: result.error });
+      throw ApiErrors.storageError(result.error || 'Failed to save file');
+    }
+
+    logger.info('File uploaded successfully', {
+      id: result.id,
+      filePath: result.filePath,
+      contentType,
+      originalFilename: file.filename,
+    });
+
+    return {
+      success: true,
+      id: result.id!,
+      message: 'File uploaded successfully',
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    // If it's already an API error, re-throw it
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      throw error;
+    }
+
+    // Otherwise, wrap it as a storage error
+    logger.error('Unexpected error in file upload endpoint', { error });
+    throw ApiErrors.storageError(
+      error instanceof Error ? error.message : 'Unknown error occurred'
+    );
+  }
 }

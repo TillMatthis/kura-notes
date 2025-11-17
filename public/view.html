@@ -185,19 +185,44 @@
           </div>
         `;
       } else if (data.content_type === 'image') {
-        // For images (will be implemented in Task 1.11)
+        // Display image inline
+        const imageUrl = `${API_BASE_URL}/api/content/${data.id}/file`;
+        const title = data.title || 'Image';
         return `
           <div class="content-body">
             <h2 class="content-section-title">Image</h2>
-            <p class="text-muted">Image display will be implemented in Task 1.11</p>
+            <div style="text-align: center; margin-top: var(--spacing-lg);">
+              <img
+                src="${imageUrl}"
+                alt="${escapeHtml(title)}"
+                style="max-width: 100%; height: auto; border-radius: var(--radius-md); box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                onclick="window.open('${imageUrl}', '_blank')"
+              />
+              <p style="margin-top: var(--spacing-sm); font-size: 0.875rem; color: var(--text-muted);">
+                Click image to view full size
+              </p>
+            </div>
           </div>
         `;
       } else if (data.content_type === 'pdf') {
-        // For PDFs (will be implemented in Task 1.11)
+        // Provide download link for PDFs
+        const pdfUrl = `${API_BASE_URL}/api/content/${data.id}/file`;
+        const title = data.title || 'Document';
         return `
           <div class="content-body">
-            <h2 class="content-section-title">PDF</h2>
-            <p class="text-muted">PDF display will be implemented in Task 1.11</p>
+            <h2 class="content-section-title">PDF Document</h2>
+            <div style="text-align: center; margin-top: var(--spacing-lg);">
+              <div style="padding: var(--spacing-xl); background-color: var(--bg-secondary); border-radius: var(--radius-md); border: 2px dashed var(--border-color);">
+                <div style="font-size: 3rem; margin-bottom: var(--spacing-md);">📄</div>
+                <h3 style="margin-bottom: var(--spacing-md);">${escapeHtml(title)}</h3>
+                <a href="${pdfUrl}" class="btn btn-primary" download="${escapeHtml(title)}.pdf" style="margin-right: var(--spacing-sm);">
+                  ⬇️ Download PDF
+                </a>
+                <a href="${pdfUrl}" class="btn btn-secondary" target="_blank">
+                  👁️ Open in New Tab
+                </a>
+              </div>
+            </div>
           </div>
         `;
       } else {
