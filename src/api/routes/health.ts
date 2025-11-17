@@ -6,6 +6,7 @@
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { getDatabaseService } from '../../services/database/index.js';
+import { getVectorStoreService } from '../../services/vectorStore.js';
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 
@@ -72,8 +73,7 @@ async function checkVectorStoreHealth(): Promise<ServiceStatus> {
   const startTime = Date.now();
 
   try {
-    // TODO: Task 2.1 - Implement actual ChromaDB health check
-    // For now, we'll just check if the URL is configured
+    // Check if the URL is configured
     if (!config.vectorStoreUrl) {
       return {
         status: 'unknown',
@@ -82,12 +82,25 @@ async function checkVectorStoreHealth(): Promise<ServiceStatus> {
       };
     }
 
-    // Placeholder - will be implemented in Task 2.1
-    return {
-      status: 'unknown',
-      message: 'Health check not yet implemented',
-      responseTime: Date.now() - startTime,
-    };
+    // Get vector store service and check health
+    const vectorStore = getVectorStoreService();
+    const isHealthy = await vectorStore.healthCheck();
+    const responseTime = Date.now() - startTime;
+
+    if (isHealthy) {
+      const stats = await vectorStore.getStats();
+      return {
+        status: 'up',
+        message: `Connected (${stats.count} documents)`,
+        responseTime,
+      };
+    } else {
+      return {
+        status: 'down',
+        message: 'ChromaDB connection failed',
+        responseTime,
+      };
+    }
   } catch (error) {
     const responseTime = Date.now() - startTime;
     return {
