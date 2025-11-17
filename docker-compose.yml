@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # API Service (Fastify Backend)
+  # ============================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: kura-notes-api:latest
+    container_name: kura-notes-api
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - API_PORT=3000
+      - API_KEY=${API_KEY}
+      - DATABASE_URL=/data/metadata/knowledge.db
+      - VECTOR_STORE_URL=http://vectordb:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./data:/data
+    depends_on:
+      vectordb:
+        condition: service_healthy
+    networks:
+      - kura-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # Vector Database (ChromaDB)
+  # ============================================
+  vectordb:
+    image: chromadb/chroma:latest
+    container_name: kura-notes-chromadb
+    ports:
+      - "${VECTOR_DB_PORT:-8000}:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - CHROMA_SERVER_AUTH_PROVIDER=${CHROMA_SERVER_AUTH_PROVIDER:-chromadb.auth.token.TokenAuthServerProvider}
+      - CHROMA_SERVER_AUTH_CREDENTIALS=${CHROMA_SERVER_AUTH_CREDENTIALS}
+      - CHROMA_SERVER_AUTH_TOKEN_TRANSPORT_HEADER=${CHROMA_SERVER_AUTH_TOKEN_TRANSPORT_HEADER:-X-Chroma-Token}
+    volumes:
+      - chroma-data:/chroma/chroma
+    networks:
+      - kura-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  kura-network:
+    driver: bridge
+    name: kura-network
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  chroma-data:
+    driver: local
+    name: kura-chroma-data
