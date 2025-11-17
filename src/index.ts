@@ -14,9 +14,13 @@ import {
   logServiceReady,
   logServiceError,
 } from './utils/logger.js';
+import { createServer, startServer, stopServer } from './api/server.js';
+import type { FastifyInstance } from 'fastify';
 
 const version = '0.1.0';
 const appName = 'KURA Notes';
+
+let fastifyInstance: FastifyInstance | null = null;
 
 /**
  * Initialize application
@@ -52,11 +56,23 @@ async function init() {
       contentByType: stats.byType,
     });
 
-    // TODO: Task 1.6 - Set up Fastify server
+    // Initialize Fastify server
+    logServiceInit('API Server');
+    fastifyInstance = await createServer();
+    logServiceReady('API Server', {
+      port: config.apiPort,
+      cors: config.corsOrigin,
+    });
+
+    // Start the server
+    await startServer(fastifyInstance);
+
     // TODO: Task 2.1 - Initialize ChromaDB connection
 
     logger.info('='.repeat(80));
-    logger.info(`✅ ${appName} v${version} - Ready for development`);
+    logger.info(`✅ ${appName} v${version} - Ready`);
+    logger.info(`🌐 API available at: http://localhost:${config.apiPort}`);
+    logger.info(`🏥 Health check: http://localhost:${config.apiPort}/api/health`);
     logger.info('='.repeat(80));
   } catch (error) {
     logger.error('='.repeat(80));
@@ -70,8 +86,26 @@ async function init() {
  * Handle graceful shutdown
  */
 function setupShutdownHandlers() {
-  const shutdown = (signal: string) => {
+  const shutdown = async (signal: string) => {
     logShutdown(appName, `Received ${signal}`);
+
+    // Close Fastify server gracefully
+    if (fastifyInstance) {
+      try {
+        await stopServer(fastifyInstance);
+      } catch (error) {
+        logger.error('Error during server shutdown', { error });
+      }
+    }
+
+    // Close database connection
+    try {
+      const db = getDatabaseService();
+      db.close();
+    } catch (error) {
+      logger.error('Error closing database', { error });
+    }
+
     process.exit(0);
   };
 
@@ -79,16 +113,18 @@ function setupShutdownHandlers() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
   // Handle uncaught exceptions
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtException', async (error) => {
     logger.error('Uncaught exception', { error: error.message, stack: error.stack });
     logShutdown(appName, 'Uncaught exception');
+    await shutdown('uncaughtException');
     process.exit(1);
   });
 
   // Handle unhandled promise rejections
-  process.on('unhandledRejection', (reason, promise) => {
+  process.on('unhandledRejection', async (reason, promise) => {
     logger.error('Unhandled promise rejection', { reason, promise });
     logShutdown(appName, 'Unhandled promise rejection');
+    await shutdown('unhandledRejection');
     process.exit(1);
   });
 }
