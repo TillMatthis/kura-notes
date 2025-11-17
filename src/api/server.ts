@@ -18,6 +18,8 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger, responseLogger } from './middleware/requestLogger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { registerHealthRoutes } from './routes/health.js';
+import { registerCaptureRoutes } from './routes/capture.js';
+import { getFileStorageService } from '../services/fileStorage.js';
 
 /**
  * Create and configure Fastify server
@@ -141,7 +143,10 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   // Health check routes
   await registerHealthRoutes(fastify);
 
-  // TODO: Task 1.7 - Register content capture routes
+  // Content capture routes (Task 1.7)
+  const fileStorage = getFileStorageService();
+  await registerCaptureRoutes(fastify, fileStorage);
+
   // TODO: Task 1.10 - Register content retrieval routes
   // TODO: Task 2.4 - Register search routes
 

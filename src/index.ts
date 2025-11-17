@@ -6,6 +6,7 @@
 
 import { config, printConfig } from './config/index.js';
 import { getDatabaseService } from './services/database/index.js';
+import { getFileStorageService } from './services/fileStorage.js';
 import {
   logger,
   logStartup,
@@ -54,6 +55,19 @@ async function init() {
       schemaVersion: stats.schemaVersion?.version || 'unknown',
       totalContent: stats.totalContent,
       contentByType: stats.byType,
+    });
+
+    // Initialize file storage service
+    logServiceInit('File Storage');
+    getFileStorageService(
+      {
+        baseDirectory: config.storageBasePath,
+        logger,
+      },
+      db
+    );
+    logServiceReady('File Storage', {
+      baseDirectory: config.storageBasePath,
     });
 
     // Initialize Fastify server
