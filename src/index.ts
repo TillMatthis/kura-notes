@@ -6,6 +6,14 @@
 
 import { config, printConfig } from './config/index.js';
 import { getDatabaseService } from './services/database/index.js';
+import {
+  logger,
+  logStartup,
+  logShutdown,
+  logServiceInit,
+  logServiceReady,
+  logServiceError,
+} from './utils/logger.js';
 
 const version = '0.1.0';
 const appName = 'KURA Notes';
@@ -14,20 +22,19 @@ const appName = 'KURA Notes';
  * Initialize application
  */
 async function init() {
-  console.log('='.repeat(80));
-  console.log(`🚀 ${appName} v${version} - Starting...`);
-  console.log('='.repeat(80));
+  // Log startup
+  logStartup(appName, version);
 
   // Print configuration (safe - secrets are masked)
   printConfig(config);
 
-  console.log('\n' + '-'.repeat(80));
-  console.log('📦 Initializing services...');
-  console.log('-'.repeat(80));
+  logger.info('-'.repeat(80));
+  logger.info('📦 Initializing services...');
+  logger.info('-'.repeat(80));
 
   try {
     // Initialize database
-    console.log('\n📊 Initializing database...');
+    logServiceInit('Database');
     const db = getDatabaseService(config.databaseUrl);
 
     // Check database health
@@ -38,36 +45,63 @@ async function init() {
 
     // Get and print database stats
     const stats = db.getStats();
-    console.log('✅ Database initialized successfully');
-    console.log('   Path:', stats.databasePath);
-    console.log('   Schema version:', stats.schemaVersion?.version || 'unknown');
-    console.log('   Total content:', stats.totalContent);
+    logServiceReady('Database', {
+      path: stats.databasePath,
+      schemaVersion: stats.schemaVersion?.version || 'unknown',
+      totalContent: stats.totalContent,
+      contentByType: stats.byType,
+    });
 
-    if (Object.keys(stats.byType).length > 0) {
-      console.log('   Content by type:');
-      Object.entries(stats.byType).forEach(([type, count]) => {
-        console.log(`     - ${type}: ${count}`);
-      });
-    }
-
-    // TODO: Task 1.5 - Initialize logging and configuration
     // TODO: Task 1.6 - Set up Fastify server
     // TODO: Task 2.1 - Initialize ChromaDB connection
 
-    console.log('\n' + '='.repeat(80));
-    console.log(`✅ ${appName} v${version} - Ready for development`);
-    console.log('='.repeat(80));
+    logger.info('='.repeat(80));
+    logger.info(`✅ ${appName} v${version} - Ready for development`);
+    logger.info('='.repeat(80));
   } catch (error) {
-    console.error('\n' + '='.repeat(80));
-    console.error('❌ Initialization failed:', error);
-    console.error('='.repeat(80));
+    logger.error('='.repeat(80));
+    logServiceError('Application', error as Error);
+    logger.error('='.repeat(80));
     process.exit(1);
   }
 }
 
+/**
+ * Handle graceful shutdown
+ */
+function setupShutdownHandlers() {
+  const shutdown = (signal: string) => {
+    logShutdown(appName, `Received ${signal}`);
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+  // Handle uncaught exceptions
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught exception', { error: error.message, stack: error.stack });
+    logShutdown(appName, 'Uncaught exception');
+    process.exit(1);
+  });
+
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled promise rejection', { reason, promise });
+    logShutdown(appName, 'Unhandled promise rejection');
+    process.exit(1);
+  });
+}
+
+// Set up shutdown handlers
+setupShutdownHandlers();
+
 // Start application
 init().catch((error) => {
-  console.error('Fatal error:', error);
+  logger.error('Fatal error during initialization', {
+    error: error.message,
+    stack: error.stack,
+  });
   process.exit(1);
 });
 
