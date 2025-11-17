@@ -9,6 +9,7 @@ import Database from 'better-sqlite3';
 import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { logger } from '../../utils/logger.js';
 import type {
   Content,
   ContentRow,
@@ -34,19 +35,25 @@ export class DatabaseService {
   private constructor(dbPath: string) {
     this.dbPath = dbPath;
 
+    logger.debug('Initializing database service', { dbPath });
+
     // Ensure database directory exists
     const dbDir = dirname(dbPath);
     if (!existsSync(dbDir)) {
+      logger.info('Creating database directory', { dbDir });
       mkdirSync(dbDir, { recursive: true });
     }
 
     // Initialize database connection
     this.db = new Database(dbPath, {
-      verbose: process.env.NODE_ENV === 'development' ? console.log : undefined,
+      verbose: process.env.NODE_ENV === 'development' ? undefined : undefined,
     });
+
+    logger.info('Database connection established', { dbPath });
 
     // Enable WAL mode for better concurrency
     this.db.pragma('journal_mode = WAL');
+    logger.debug('WAL mode enabled for database');
 
     // Run migrations
     this.migrate();
@@ -70,6 +77,7 @@ export class DatabaseService {
    */
   public static resetInstance(): void {
     if (DatabaseService.instance) {
+      logger.debug('Resetting database service instance');
       DatabaseService.instance.close();
       DatabaseService.instance = null;
     }
@@ -80,9 +88,13 @@ export class DatabaseService {
    */
   private migrate(): void {
     try {
+      logger.info('Running database migrations...');
+
       // Get the directory of this file
       const __dirname = dirname(fileURLToPath(import.meta.url));
       const schemaPath = join(__dirname, 'schema.sql');
+
+      logger.debug('Reading schema file', { schemaPath });
 
       // Read and execute schema
       const schema = readFileSync(schemaPath, 'utf-8');
@@ -90,9 +102,13 @@ export class DatabaseService {
       // Execute schema (better-sqlite3 supports multiple statements)
       this.db.exec(schema);
 
-      console.log('✅ Database migrations completed successfully');
+      const version = this.getSchemaVersion();
+      logger.info('Database migrations completed successfully', {
+        version: version?.version,
+        description: version?.description,
+      });
     } catch (error) {
-      console.error('❌ Database migration failed:', error);
+      logger.error('Database migration failed', { error });
       throw error;
     }
   }
@@ -115,6 +131,12 @@ export class DatabaseService {
    * Create new content entry
    */
   public createContent(input: CreateContentInput): Content {
+    logger.debug('Creating content', {
+      id: input.id,
+      contentType: input.content_type,
+      title: input.title,
+    });
+
     const stmt = this.db.prepare(`
       INSERT INTO content (
         id, file_path, content_type, title, source, tags, annotation, extracted_text
@@ -125,21 +147,37 @@ export class DatabaseService {
 
     const tagsJson = input.tags ? JSON.stringify(input.tags) : null;
 
-    stmt.run({
-      id: input.id,
-      file_path: input.file_path,
-      content_type: input.content_type,
-      title: input.title || null,
-      source: input.source || null,
-      tags: tagsJson,
-      annotation: input.annotation || null,
-      extracted_text: input.extracted_text || null,
-    });
+    try {
+      stmt.run({
+        id: input.id,
+        file_path: input.file_path,
+        content_type: input.content_type,
+        title: input.title || null,
+        source: input.source || null,
+        tags: tagsJson,
+        annotation: input.annotation || null,
+        extracted_text: input.extracted_text || null,
+      });
+
+      logger.info('Content created successfully', {
+        id: input.id,
+        contentType: input.content_type,
+      });
+    } catch (error) {
+      logger.error('Failed to create content', {
+        error,
+        id: input.id,
+        contentType: input.content_type,
+      });
+      throw error;
+    }
 
     // Return the created content
     const created = this.getContentById(input.id);
     if (!created) {
-      throw new Error('Failed to retrieve created content');
+      const error = new Error('Failed to retrieve created content');
+      logger.error('Content creation verification failed', { id: input.id });
+      throw error;
     }
 
     return created;
@@ -225,10 +263,20 @@ export class DatabaseService {
    * Delete content by ID
    */
   public deleteContent(id: string): boolean {
+    logger.debug('Deleting content', { id });
+
     const stmt = this.db.prepare('DELETE FROM content WHERE id = ?');
     const result = stmt.run(id);
 
-    return result.changes > 0;
+    const deleted = result.changes > 0;
+
+    if (deleted) {
+      logger.info('Content deleted successfully', { id });
+    } else {
+      logger.warn('Content not found for deletion', { id });
+    }
+
+    return deleted;
   }
 
   /**
@@ -267,6 +315,8 @@ export class DatabaseService {
    * Search content using FTS5
    */
   public searchContent(query: string, limit = 10): Content[] {
+    logger.debug('Searching content with FTS', { query, limit });
+
     const stmt = this.db.prepare(`
       SELECT c.*
       FROM content_fts fts
@@ -277,6 +327,11 @@ export class DatabaseService {
     `);
 
     const rows = stmt.all(query, limit) as ContentRow[];
+
+    logger.debug('Search completed', {
+      query,
+      resultsCount: rows.length,
+    });
 
     return rows.map((row) => this.mapRowToContent(row));
   }
@@ -405,7 +460,9 @@ export class DatabaseService {
    * Close database connection
    */
   public close(): void {
+    logger.info('Closing database connection', { dbPath: this.dbPath });
     this.db.close();
+    logger.debug('Database connection closed');
   }
 
   /**
@@ -415,8 +472,17 @@ export class DatabaseService {
     try {
       const stmt = this.db.prepare('SELECT 1 as health');
       const result = stmt.get() as { health: number };
-      return result.health === 1;
-    } catch {
+      const isHealthy = result.health === 1;
+
+      if (isHealthy) {
+        logger.debug('Database health check passed');
+      } else {
+        logger.warn('Database health check returned unexpected value', { result });
+      }
+
+      return isHealthy;
+    } catch (error) {
+      logger.error('Database health check failed', { error });
       return false;
     }
   }

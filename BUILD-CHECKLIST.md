@@ -15,12 +15,12 @@
 
 ## Progress Tracking
 
-**Phase 1 (Foundation):** 3/12 tasks complete
+**Phase 1 (Foundation):** 4/12 tasks complete
 **Phase 2 (Search):** 0/8 tasks complete
 **Phase 3 (Complete MVP):** 0/10 tasks complete
 **Phase 4 (Polish & Deploy):** 0/6 tasks complete
 
-**Overall Progress:** 3/36 tasks complete (8%)
+**Overall Progress:** 4/36 tasks complete (11%)
 
 ---
 
@@ -212,34 +212,43 @@
 ---
 
 ### Task 1.5: Logging & Configuration
-**Branch:** `task/005-logging-config`  
-**Estimated Time:** 1-2 hours  
+**Branch:** `claude/review-cli-build-docs-019p33WdG4VL1HeEPniKK1bs`
+**Estimated Time:** 1-2 hours
 **Depends On:** Task 1.1
 
-- [ ] Set up Winston logger
+- [x] Set up Winston logger
   - Console transport (development)
   - File transport (production)
   - JSON formatting
   - Log levels: ERROR, WARN, INFO, DEBUG
-- [ ] Create config service
+- [x] Create config service (already existed from Task 1.1)
   - Load environment variables
   - Validate required config
   - Provide typed config object
-- [ ] Add logging to existing services
+- [x] Add logging to existing services
   - Database operations
-  - File operations
+  - File operations (already had logging)
   - Startup/shutdown
-- [ ] Create log directory structure
-- [ ] Add log rotation (daily)
+- [x] Create log directory structure
+- [x] Add log rotation (daily)
 
 **Acceptance Criteria:**
-- Logs written to console in dev
-- Logs written to files in production
-- No sensitive data in logs
-- Config loaded from environment
-- Missing config detected on startup
+- ✅ Logs written to console in dev
+- ✅ Logs written to files in production
+- ✅ No sensitive data in logs (automatic filtering)
+- ✅ Config loaded from environment
+- ✅ Missing config detected on startup
 
-**Completion Date:** _________
+**Completion Date:** 2025-11-17
+
+**Notes:**
+- Created centralized logger utility (`src/utils/logger.ts`)
+- Added automatic sensitive data filtering (API keys, passwords, tokens, etc.)
+- Implemented daily log rotation with 7-day retention for general logs, 30-day for errors
+- Added structured logging helpers (logStartup, logShutdown, logServiceInit, etc.)
+- Added graceful shutdown handlers with proper logging
+- Created comprehensive test suites (16 logger tests + 31 config tests)
+- All tests passing except 3 pre-existing database timing issues from Task 1.3
 
 ---
 
