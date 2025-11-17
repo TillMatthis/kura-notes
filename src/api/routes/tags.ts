@@ -12,6 +12,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { TagService } from '../../services/tagService.js';
 import { logger } from '../../utils/logger.js';
+import { ApiErrors } from '../types/errors.js';
 
 /**
  * Register tag routes
@@ -83,10 +84,9 @@ export async function registerTagRoutes(
         });
       } catch (error) {
         logger.error('Failed to get tags', { error });
-        reply.code(500).send({
-          error: 'Failed to get tags',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
+        throw ApiErrors.internalError(
+          error instanceof Error ? error.message : 'Failed to get tags'
+        );
       }
     }
   );
@@ -152,11 +152,8 @@ export async function registerTagRoutes(
         });
 
         if (!query || query.trim().length === 0) {
-          reply.code(400).send({
-            error: 'Query parameter required',
-            message: 'Please provide a search query (q parameter)',
-          });
-          return;
+          logger.warn('Missing search query parameter');
+          throw ApiErrors.validationError('Search query parameter (q) is required');
         }
 
         // Search tags
@@ -168,10 +165,15 @@ export async function registerTagRoutes(
         });
       } catch (error) {
         logger.error('Failed to search tags', { error });
-        reply.code(500).send({
-          error: 'Failed to search tags',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
+
+        // Re-throw ApiErrors
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
+        throw ApiErrors.internalError(
+          error instanceof Error ? error.message : 'Failed to search tags'
+        );
       }
     }
   );
@@ -230,11 +232,8 @@ export async function registerTagRoutes(
         });
 
         if (!newTag || newTag.trim().length === 0) {
-          reply.code(400).send({
-            error: 'New tag required',
-            message: 'Please provide a new tag name',
-          });
-          return;
+          logger.warn('Missing new tag name');
+          throw ApiErrors.validationError('New tag name is required');
         }
 
         // Rename tag
@@ -248,10 +247,15 @@ export async function registerTagRoutes(
         });
       } catch (error) {
         logger.error('Failed to rename tag', { error });
-        reply.code(500).send({
-          error: 'Failed to rename tag',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
+
+        // Re-throw ApiErrors
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
+        throw ApiErrors.internalError(
+          error instanceof Error ? error.message : 'Failed to rename tag'
+        );
       }
     }
   );
@@ -309,19 +313,13 @@ export async function registerTagRoutes(
         });
 
         if (!sourceTags || sourceTags.length === 0) {
-          reply.code(400).send({
-            error: 'Source tags required',
-            message: 'Please provide at least one source tag',
-          });
-          return;
+          logger.warn('Missing source tags');
+          throw ApiErrors.validationError('At least one source tag is required');
         }
 
         if (!targetTag || targetTag.trim().length === 0) {
-          reply.code(400).send({
-            error: 'Target tag required',
-            message: 'Please provide a target tag name',
-          });
-          return;
+          logger.warn('Missing target tag');
+          throw ApiErrors.validationError('Target tag name is required');
         }
 
         // Merge tags
@@ -335,10 +333,15 @@ export async function registerTagRoutes(
         });
       } catch (error) {
         logger.error('Failed to merge tags', { error });
-        reply.code(500).send({
-          error: 'Failed to merge tags',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
+
+        // Re-throw ApiErrors
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
+        throw ApiErrors.internalError(
+          error instanceof Error ? error.message : 'Failed to merge tags'
+        );
       }
     }
   );
@@ -393,10 +396,9 @@ export async function registerTagRoutes(
         });
       } catch (error) {
         logger.error('Failed to delete tag', { error });
-        reply.code(500).send({
-          error: 'Failed to delete tag',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
+        throw ApiErrors.internalError(
+          error instanceof Error ? error.message : 'Failed to delete tag'
+        );
       }
     }
   );

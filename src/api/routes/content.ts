@@ -225,7 +225,6 @@ export async function registerContentRoutes(
         if (!fileContent.success) {
           logger.error('Failed to read file content', {
             id,
-            filePath: metadata.file_path,
             error: fileContent.error,
           });
           throw ApiErrors.storageError('Failed to read file content');
@@ -330,7 +329,6 @@ export async function registerContentRoutes(
         logger.info('Streaming file', {
           id,
           contentType,
-          filePath: metadata.file_path,
         });
 
         // Stream the file
@@ -525,7 +523,6 @@ export async function registerContentRoutes(
           id,
           contentType,
           filename,
-          filePath: metadata.file_path,
         });
 
         // Stream the file
@@ -770,7 +767,7 @@ export async function registerContentRoutes(
       try {
         logger.info('Bulk delete request received', {
           count: ids.length,
-          ids: ids.slice(0, 10), // Log first 10 IDs only
+          ...(process.env.NODE_ENV !== 'production' && { ids: ids.slice(0, 10) }),
         });
 
         const results = {
@@ -921,7 +918,7 @@ export async function registerContentRoutes(
           count: ids.length,
           tags,
           mode,
-          ids: ids.slice(0, 10), // Log first 10 IDs only
+          ...(process.env.NODE_ENV !== 'production' && { ids: ids.slice(0, 10) }),
         });
 
         const results = {

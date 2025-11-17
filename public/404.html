@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="KURA Notes - Page Not Found">
+  <title>404 - Page Not Found | KURA Notes</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <style>
+    .error-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .error-code {
+      font-size: 8rem;
+      font-weight: 700;
+      color: var(--primary-color, #3b82f6);
+      line-height: 1;
+      margin: 0;
+    }
+
+    .error-title {
+      font-size: 2rem;
+      font-weight: 600;
+      margin: 1rem 0;
+      color: var(--text-color, #1f2937);
+    }
+
+    .error-message {
+      font-size: 1.125rem;
+      color: var(--text-muted, #6b7280);
+      max-width: 32rem;
+      margin: 0 auto 2rem;
+      line-height: 1.6;
+    }
+
+    .error-actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .error-link {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      background-color: var(--primary-color, #3b82f6);
+      color: white;
+      text-decoration: none;
+      border-radius: 0.5rem;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+
+    .error-link:hover {
+      background-color: var(--primary-hover, #2563eb);
+    }
+
+    .error-link-secondary {
+      background-color: transparent;
+      color: var(--primary-color, #3b82f6);
+      border: 2px solid var(--primary-color, #3b82f6);
+    }
+
+    .error-link-secondary:hover {
+      background-color: var(--bg-secondary, #f3f4f6);
+    }
+
+    .error-suggestions {
+      margin-top: 3rem;
+      text-align: left;
+      max-width: 32rem;
+      padding: 1.5rem;
+      background-color: var(--bg-secondary, #f3f4f6);
+      border-radius: 0.5rem;
+    }
+
+    .error-suggestions h3 {
+      margin-top: 0;
+      font-size: 1.125rem;
+      color: var(--text-color, #1f2937);
+    }
+
+    .error-suggestions ul {
+      list-style: none;
+      padding: 0;
+      margin: 0.5rem 0 0 0;
+    }
+
+    .error-suggestions li {
+      padding: 0.5rem 0;
+      color: var(--text-muted, #6b7280);
+    }
+
+    .error-suggestions a {
+      color: var(--primary-color, #3b82f6);
+      text-decoration: none;
+    }
+
+    .error-suggestions a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 640px) {
+      .error-code {
+        font-size: 5rem;
+      }
+
+      .error-title {
+        font-size: 1.5rem;
+      }
+
+      .error-message {
+        font-size: 1rem;
+      }
+
+      .error-actions {
+        flex-direction: column;
+        width: 100%;
+      }
+
+      .error-link {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header / Navigation -->
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="/" class="nav-brand">
+          <span>📚</span>
+          <span>KURA Notes</span>
+        </a>
+        <ul class="nav-menu">
+          <li><a href="/" class="nav-link">Home</a></li>
+          <li><a href="/create.html" class="nav-link">Create Note</a></li>
+          <li><a href="/upload.html" class="nav-link">Upload File</a></li>
+          <li><a href="/search.html" class="nav-link">Search</a></li>
+          <li><a href="/tags.html" class="nav-link">Tags</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main">
+    <div class="container">
+      <div class="error-container">
+        <div class="error-code">404</div>
+        <h1 class="error-title">Page Not Found</h1>
+        <p class="error-message">
+          The page you're looking for doesn't exist or has been moved.
+          Don't worry, your knowledge base is still intact!
+        </p>
+
+        <div class="error-actions">
+          <a href="/" class="error-link">
+            🏠 Go Home
+          </a>
+          <a href="/search.html" class="error-link error-link-secondary">
+            🔍 Search Content
+          </a>
+        </div>
+
+        <div class="error-suggestions">
+          <h3>What would you like to do?</h3>
+          <ul>
+            <li>📝 <a href="/create.html">Create a new note</a></li>
+            <li>📤 <a href="/upload.html">Upload a file</a></li>
+            <li>🔖 <a href="/tags.html">Browse your tags</a></li>
+            <li>🔙 <a href="javascript:history.back()">Go back to previous page</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2025 KURA Notes. Your Personal Knowledge Base.</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -8,6 +8,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { getStatsService } from '../../services/statsService.js';
 import { logger } from '../../utils/logger.js';
+import { ApiErrors } from '../types/errors.js';
 
 /**
  * Stats handler
@@ -35,11 +36,10 @@ async function statsHandler(
   } catch (error) {
     logger.error('Failed to retrieve stats', { error });
 
-    return reply.status(500).send({
-      success: false,
-      error: 'Failed to retrieve statistics',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    // Let the centralized error handler deal with it
+    throw ApiErrors.internalError(
+      error instanceof Error ? error.message : 'Failed to retrieve statistics'
+    );
   }
 }
 

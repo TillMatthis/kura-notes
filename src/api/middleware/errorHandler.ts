@@ -18,6 +18,7 @@ export async function errorHandler(
   reply: FastifyReply
 ): Promise<void> {
   const path = request.url;
+  const statusCode = 'statusCode' in error ? error.statusCode : 500;
 
   // Log error with context
   logger.error('API error', {
@@ -25,8 +26,15 @@ export async function errorHandler(
     stack: error.stack,
     path,
     method: request.method,
-    statusCode: 'statusCode' in error ? error.statusCode : 500,
+    statusCode,
   });
+
+  // Check if request accepts HTML (browser request) and it's a 500 error
+  const acceptsHtml = request.headers.accept?.includes('text/html');
+  if (acceptsHtml && !path.startsWith('/api/') && statusCode >= 500) {
+    // Serve 500 HTML page for browser requests
+    return reply.status(500).type('text/html').sendFile('500.html');
+  }
 
   // Handle ApiError (our custom errors)
   if (error instanceof ApiError) {
