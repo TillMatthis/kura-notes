@@ -314,6 +314,17 @@ p {
   background-color: var(--bg-tertiary);
 }
 
+.btn-danger {
+  color: white;
+  background-color: var(--error-color);
+  border-color: var(--error-color);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #dc2626;
+  border-color: #dc2626;
+}
+
 .btn-lg {
   padding: var(--spacing-md) var(--spacing-xl);
   font-size: 1rem;

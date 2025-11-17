@@ -51,8 +51,8 @@
           <button class="btn btn-secondary" onclick="window.history.back()">
             ← Back
           </button>
-          <button class="btn btn-secondary" id="delete-btn" onclick="deleteContent()">
-            🗑️ Delete (Coming Soon)
+          <button class="btn btn-danger" id="delete-btn" onclick="deleteContent()">
+            🗑️ Delete
           </button>
         </div>
       </div>
@@ -249,9 +249,47 @@
       `;
     }
 
-    // Delete content (placeholder for Task 1.12)
-    function deleteContent() {
-      alert('Delete functionality will be implemented in Task 1.12');
+    // Delete content
+    async function deleteContent() {
+      const contentId = getContentIdFromUrl();
+
+      if (!contentId) {
+        alert('No content ID found');
+        return;
+      }
+
+      // Show confirmation dialog
+      const confirmed = confirm('Are you sure you want to delete this content? This action cannot be undone.');
+
+      if (!confirmed) {
+        return;
+      }
+
+      // Show loading state
+      const deleteBtn = document.getElementById('delete-btn');
+      const originalBtnText = deleteBtn.innerHTML;
+      deleteBtn.disabled = true;
+      deleteBtn.innerHTML = '⏳ Deleting...';
+
+      try {
+        // Call DELETE endpoint using apiRequest helper
+        const data = await apiRequest(`/api/content/${contentId}`, {
+          method: 'DELETE',
+        });
+
+        // Show success message and redirect to home
+        alert('Content deleted successfully');
+        window.location.href = '/';
+      } catch (error) {
+        console.error('Failed to delete content:', error);
+
+        // Show error message
+        alert(error.message || 'Failed to delete content. Please try again.');
+
+        // Restore button state
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = originalBtnText;
+      }
     }
 
     // Escape HTML to prevent XSS
