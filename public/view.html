@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="KURA Notes - View Content">
+  <title>View Content - KURA Notes</title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <!-- Header / Navigation -->
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="/" class="nav-brand">
+          <span>📚</span>
+          <span>KURA Notes</span>
+        </a>
+        <ul class="nav-menu">
+          <li><a href="/" class="nav-link">Home</a></li>
+          <li><a href="/create.html" class="nav-link">Create Note</a></li>
+          <li><a href="/upload.html" class="nav-link">Upload File</a></li>
+          <li><a href="/search.html" class="nav-link">Search</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main">
+    <div class="container container-narrow">
+      <!-- Back Button -->
+      <div class="mb-3">
+        <a href="/" class="btn btn-secondary">
+          ← Back to Home
+        </a>
+      </div>
+
+      <!-- Content Container -->
+      <div id="content-container">
+        <!-- Loading state will be shown here -->
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Loading content...</p>
+        </div>
+      </div>
+
+      <!-- Action Buttons (shown after content loads) -->
+      <div id="content-actions" class="hidden mt-4">
+        <div class="grid grid-cols-2">
+          <button class="btn btn-secondary" onclick="window.history.back()">
+            ← Back
+          </button>
+          <button class="btn btn-secondary" id="delete-btn" onclick="deleteContent()">
+            🗑️ Delete (Coming Soon)
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <p>KURA Notes v0.1.0 - Personal Knowledge Management</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/js/main.js"></script>
+  <script>
+    // Get content ID from URL
+    function getContentIdFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('id');
+    }
+
+    // Load and display content
+    async function loadContent() {
+      const contentId = getContentIdFromUrl();
+
+      if (!contentId) {
+        showError('No content ID provided');
+        return;
+      }
+
+      const container = document.getElementById('content-container');
+
+      try {
+        const data = await apiRequest(`/api/content/${contentId}`);
+
+        // Build metadata HTML
+        const metadataHtml = buildMetadataHtml(data);
+
+        // Build content HTML based on content type
+        const contentHtml = buildContentHtml(data);
+
+        // Display content
+        container.innerHTML = `
+          <div class="card">
+            <div class="content-view">
+              ${metadataHtml}
+              <div class="content-divider"></div>
+              ${contentHtml}
+            </div>
+          </div>
+        `;
+
+        // Show action buttons
+        document.getElementById('content-actions').classList.remove('hidden');
+      } catch (error) {
+        console.error('Failed to load content:', error);
+        showError(error.message || 'Failed to load content. Please try again.');
+      }
+    }
+
+    // Build metadata section
+    function buildMetadataHtml(data) {
+      const icon = getContentTypeIcon(data.content_type);
+      const title = data.title || 'Untitled';
+      const createdDate = new Date(data.created_at).toLocaleString();
+      const updatedDate = new Date(data.updated_at).toLocaleString();
+      const relativeTime = formatRelativeTime(data.created_at);
+
+      const tagsHtml = data.tags && data.tags.length > 0
+        ? `
+          <div class="metadata-row">
+            <div class="metadata-label">Tags</div>
+            <div class="metadata-value">
+              ${data.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+            </div>
+          </div>
+        `
+        : '';
+
+      const annotationHtml = data.annotation
+        ? `
+          <div class="metadata-row">
+            <div class="metadata-label">Annotation</div>
+            <div class="metadata-value">${escapeHtml(data.annotation)}</div>
+          </div>
+        `
+        : '';
+
+      return `
+        <div class="content-header">
+          <div class="content-icon">${icon}</div>
+          <div>
+            <h1 class="content-title">${escapeHtml(title)}</h1>
+            <p class="content-meta">
+              Created ${relativeTime} • ${data.content_type}
+              ${data.source ? ` • via ${data.source}` : ''}
+            </p>
+          </div>
+        </div>
+
+        <div class="metadata-section">
+          ${annotationHtml}
+          ${tagsHtml}
+          <div class="metadata-row">
+            <div class="metadata-label">Created</div>
+            <div class="metadata-value">${createdDate}</div>
+          </div>
+          <div class="metadata-row">
+            <div class="metadata-label">Updated</div>
+            <div class="metadata-value">${updatedDate}</div>
+          </div>
+          <div class="metadata-row">
+            <div class="metadata-label">ID</div>
+            <div class="metadata-value"><code>${data.id}</code></div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Build content section based on type
+    function buildContentHtml(data) {
+      if (data.content_type === 'text') {
+        return `
+          <div class="content-body">
+            <h2 class="content-section-title">Content</h2>
+            <div class="content-text">${escapeHtml(data.content).replace(/\n/g, '<br>')}</div>
+          </div>
+        `;
+      } else if (data.content_type === 'image') {
+        // For images (will be implemented in Task 1.11)
+        return `
+          <div class="content-body">
+            <h2 class="content-section-title">Image</h2>
+            <p class="text-muted">Image display will be implemented in Task 1.11</p>
+          </div>
+        `;
+      } else if (data.content_type === 'pdf') {
+        // For PDFs (will be implemented in Task 1.11)
+        return `
+          <div class="content-body">
+            <h2 class="content-section-title">PDF</h2>
+            <p class="text-muted">PDF display will be implemented in Task 1.11</p>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="content-body">
+            <h2 class="content-section-title">Content</h2>
+            <p class="text-muted">Unsupported content type: ${data.content_type}</p>
+          </div>
+        `;
+      }
+    }
+
+    // Show error message
+    function showError(message) {
+      const container = document.getElementById('content-container');
+      container.innerHTML = `
+        <div class="card">
+          <div class="error-state">
+            <h2>Error</h2>
+            <p class="text-error">${escapeHtml(message)}</p>
+            <a href="/" class="btn btn-primary mt-3">Return to Home</a>
+          </div>
+        </div>
+      `;
+    }
+
+    // Delete content (placeholder for Task 1.12)
+    function deleteContent() {
+      alert('Delete functionality will be implemented in Task 1.12');
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Initialize
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadContent);
+    } else {
+      loadContent();
+    }
+  </script>
+</body>
+</html>

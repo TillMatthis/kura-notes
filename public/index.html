@@ -145,11 +145,86 @@
       }
     }
 
+    // Load recent items
+    async function loadRecentItems() {
+      const container = document.getElementById('recent-items');
+
+      // Show loading state
+      container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><p>Loading recent items...</p></div>';
+
+      try {
+        const data = await apiRequest('/api/content/recent');
+
+        // Check if there are any items
+        if (!data.items || data.items.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <p class="text-muted text-center">
+                No items yet. Create your first note or upload a file to get started!
+              </p>
+            </div>
+          `;
+          return;
+        }
+
+        // Build HTML for recent items
+        const itemsHtml = data.items.map(item => {
+          const icon = getContentTypeIcon(item.content_type);
+          const relativeTime = formatRelativeTime(item.created_at);
+          const title = item.title || item.annotation || 'Untitled';
+          const tagsHtml = item.tags && item.tags.length > 0
+            ? item.tags.map(tag => `<span class="tag">${tag}</span>`).join('')
+            : '';
+
+          return `
+            <div class="item-card" onclick="viewContent('${item.id}')">
+              <div class="item-icon">${icon}</div>
+              <div class="item-content">
+                <div class="item-header">
+                  <h3 class="item-title">${escapeHtml(title)}</h3>
+                  <span class="item-date">${relativeTime}</span>
+                </div>
+                ${item.annotation && item.title !== item.annotation ? `<p class="item-annotation">${escapeHtml(item.annotation)}</p>` : ''}
+                ${tagsHtml ? `<div class="item-tags">${tagsHtml}</div>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        container.innerHTML = `<div class="items-list">${itemsHtml}</div>`;
+      } catch (error) {
+        console.error('Failed to load recent items:', error);
+        container.innerHTML = `
+          <div class="error-state">
+            <p class="text-error text-center">
+              Failed to load recent items. Please try again later.
+            </p>
+          </div>
+        `;
+      }
+    }
+
+    // Navigate to content view page
+    function viewContent(contentId) {
+      window.location.href = `/view.html?id=${contentId}`;
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
     // Initialize
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', loadStats);
+      document.addEventListener('DOMContentLoaded', () => {
+        loadStats();
+        loadRecentItems();
+      });
     } else {
       loadStats();
+      loadRecentItems();
     }
   </script>
 </body>
