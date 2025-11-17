@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Create a new note in KURA Notes">
+  <title>Create Note - KURA Notes</title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <!-- Header / Navigation -->
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="/" class="nav-brand">
+          <span>📚</span>
+          <span>KURA Notes</span>
+        </a>
+        <ul class="nav-menu">
+          <li><a href="/" class="nav-link">Home</a></li>
+          <li><a href="/create.html" class="nav-link">Create Note</a></li>
+          <li><a href="/upload.html" class="nav-link">Upload File</a></li>
+          <li><a href="/search.html" class="nav-link">Search</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main">
+    <div class="container container-narrow">
+      <h1>Create New Note</h1>
+      <p class="text-muted mb-4">
+        Write a text note with optional tags and context
+      </p>
+
+      <!-- Create Note Form -->
+      <div class="card">
+        <form id="create-note-form">
+          <!-- Title Field -->
+          <div class="form-group">
+            <label for="title" class="form-label">Title (optional)</label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              class="form-input"
+              placeholder="Enter a title for your note"
+              maxlength="200"
+            >
+            <span class="form-help">A descriptive title helps you find this note later</span>
+          </div>
+
+          <!-- Content Field -->
+          <div class="form-group">
+            <label for="content" class="form-label">Content *</label>
+            <textarea
+              id="content"
+              name="content"
+              class="form-textarea"
+              placeholder="Write your note here..."
+              required
+              rows="10"
+            ></textarea>
+            <span class="form-help">The main content of your note (required)</span>
+          </div>
+
+          <!-- Annotation Field -->
+          <div class="form-group">
+            <label for="annotation" class="form-label">Annotation (optional)</label>
+            <textarea
+              id="annotation"
+              name="annotation"
+              class="form-textarea"
+              placeholder="Add context, thoughts, or related information..."
+              rows="3"
+            ></textarea>
+            <span class="form-help">Additional context that helps with search and understanding</span>
+          </div>
+
+          <!-- Tags Field -->
+          <div class="form-group">
+            <label for="tags" class="form-label">Tags (optional)</label>
+            <input
+              type="text"
+              id="tags"
+              name="tags"
+              class="form-input"
+              placeholder="personal, work, ideas (comma-separated)"
+            >
+            <span class="form-help">Comma-separated tags for organizing your notes</span>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="form-group">
+            <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+              💾 Save Note
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="clearForm()">
+              Clear
+            </button>
+          </div>
+        </form>
+
+        <!-- Success/Error Messages -->
+        <div id="form-message" class="hidden"></div>
+      </div>
+
+      <!-- Keyboard Shortcuts Info -->
+      <div class="card mt-4">
+        <h3>Keyboard Shortcuts</h3>
+        <p class="text-muted" style="font-size: 0.875rem;">
+          <strong>Cmd/Ctrl + Enter:</strong> Save note<br>
+          <strong>Esc:</strong> Clear form
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <p>KURA Notes v0.1.0 - Personal Knowledge Management</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/js/main.js"></script>
+  <script>
+    const form = document.getElementById('create-note-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const messageEl = document.getElementById('form-message');
+
+    // Clear form
+    function clearForm() {
+      form.reset();
+      messageEl.className = 'hidden';
+    }
+
+    // Show message
+    function showFormMessage(message, type) {
+      messageEl.textContent = message;
+      messageEl.className = `message message-${type}`;
+      messageEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // Handle form submission
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Check API key
+      if (!checkApiKey()) {
+        return;
+      }
+
+      // Get form data
+      const formData = new FormData(form);
+      const title = formData.get('title');
+      const content = formData.get('content');
+      const annotation = formData.get('annotation');
+      const tagsInput = formData.get('tags');
+
+      // Parse tags
+      const tags = tagsInput
+        ? tagsInput.split(',').map(t => t.trim()).filter(t => t)
+        : [];
+
+      // Prepare request body
+      const body = {
+        contentType: 'text',
+        content: content,
+        ...(title && { title }),
+        ...(annotation && { annotation }),
+        ...(tags.length > 0 && { tags }),
+      };
+
+      // Disable submit button
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="loading"></span> Saving...';
+
+      try {
+        // Make API request
+        const response = await apiRequest('/api/capture', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+
+        // Show success message
+        showFormMessage('Note saved successfully! Redirecting...', 'success');
+
+        // Clear form after short delay
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1500);
+
+      } catch (error) {
+        console.error('Failed to save note:', error);
+        showFormMessage(`Failed to save note: ${error.message}`, 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '💾 Save Note';
+      }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Cmd/Ctrl + Enter to submit
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+
+      // Esc to clear
+      if (e.key === 'Escape') {
+        clearForm();
+      }
+    });
+
+    // Auto-focus content field
+    document.getElementById('content').focus();
+  </script>
+</body>
+</html>

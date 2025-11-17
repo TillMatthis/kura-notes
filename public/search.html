@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Search your KURA Notes">
+  <title>Search - KURA Notes</title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <!-- Header / Navigation -->
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="/" class="nav-brand">
+          <span>📚</span>
+          <span>KURA Notes</span>
+        </a>
+        <ul class="nav-menu">
+          <li><a href="/" class="nav-link">Home</a></li>
+          <li><a href="/create.html" class="nav-link">Create Note</a></li>
+          <li><a href="/upload.html" class="nav-link">Upload File</a></li>
+          <li><a href="/search.html" class="nav-link">Search</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main">
+    <div class="container">
+      <h1>Search</h1>
+      <p class="text-muted mb-4">
+        Find your notes using natural language search
+      </p>
+
+      <!-- Search Form -->
+      <div class="card mb-4">
+        <form id="search-form">
+          <div class="form-group mb-3">
+            <label for="search-query" class="form-label">Search Query</label>
+            <div style="display: flex; gap: var(--spacing-md);">
+              <input
+                type="text"
+                id="search-query"
+                name="query"
+                class="form-input"
+                placeholder="What are you looking for?"
+                style="flex: 1;"
+                autofocus
+              >
+              <button type="submit" class="btn btn-primary" id="search-btn">
+                🔍 Search
+              </button>
+            </div>
+            <span class="form-help">
+              Use natural language like "meeting notes from last week" or "design mockups"
+            </span>
+          </div>
+
+          <!-- Filters (Collapsed by default) -->
+          <details style="margin-top: var(--spacing-lg);">
+            <summary style="cursor: pointer; font-weight: 500; color: var(--text-primary); margin-bottom: var(--spacing-md);">
+              Advanced Filters
+            </summary>
+
+            <div class="grid grid-cols-3" style="gap: var(--spacing-md);">
+              <!-- Content Type Filter -->
+              <div class="form-group">
+                <label class="form-label">Content Type</label>
+                <div style="display: flex; flex-direction: column; gap: var(--spacing-xs);">
+                  <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-weight: normal;">
+                    <input type="checkbox" name="contentType" value="text" checked>
+                    <span>📝 Text</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-weight: normal;">
+                    <input type="checkbox" name="contentType" value="image" checked>
+                    <span>🖼️ Images</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-weight: normal;">
+                    <input type="checkbox" name="contentType" value="pdf" checked>
+                    <span>📄 PDFs</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Date Range Filter -->
+              <div class="form-group">
+                <label for="date-from" class="form-label">Date From</label>
+                <input
+                  type="date"
+                  id="date-from"
+                  name="dateFrom"
+                  class="form-input"
+                >
+              </div>
+
+              <div class="form-group">
+                <label for="date-to" class="form-label">Date To</label>
+                <input
+                  type="date"
+                  id="date-to"
+                  name="dateTo"
+                  class="form-input"
+                >
+              </div>
+
+              <!-- Tags Filter -->
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label for="filter-tags" class="form-label">Tags</label>
+                <input
+                  type="text"
+                  id="filter-tags"
+                  name="tags"
+                  class="form-input"
+                  placeholder="work, personal (comma-separated)"
+                >
+              </div>
+            </div>
+          </details>
+        </form>
+      </div>
+
+      <!-- Search Results -->
+      <div id="search-results" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Search Results</h2>
+            <p class="card-description" id="results-count"></p>
+          </div>
+          <div id="results-container"></div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="card text-center">
+        <div style="padding: var(--spacing-2xl);">
+          <div style="font-size: 3rem; margin-bottom: var(--spacing-md);">🔍</div>
+          <h3>No search yet</h3>
+          <p class="text-muted">
+            Enter a search query above to find your notes, images, and documents.
+          </p>
+        </div>
+      </div>
+
+      <!-- No Results State -->
+      <div id="no-results" class="card text-center hidden">
+        <div style="padding: var(--spacing-2xl);">
+          <div style="font-size: 3rem; margin-bottom: var(--spacing-md);">🤷</div>
+          <h3>No results found</h3>
+          <p class="text-muted">
+            Try different keywords or remove some filters.
+          </p>
+        </div>
+      </div>
+
+      <!-- Search Tips -->
+      <div class="card mt-4">
+        <h3>Search Tips</h3>
+        <ul style="margin-left: 1.5rem; color: var(--text-secondary);">
+          <li>Use natural language: "meeting notes from yesterday"</li>
+          <li>Search is semantic - it understands context and meaning</li>
+          <li>Use filters to narrow down results by type, date, or tags</li>
+          <li>Keyboard shortcut: Press <kbd>/</kbd> to focus search</li>
+        </ul>
+        <p class="text-muted mt-3" style="font-size: 0.875rem;">
+          Note: Vector search will be available once Task 2.x is completed. For now, this is a placeholder.
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <p>KURA Notes v0.1.0 - Personal Knowledge Management</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/js/main.js"></script>
+  <script>
+    const searchForm = document.getElementById('search-form');
+    const searchBtn = document.getElementById('search-btn');
+    const searchQuery = document.getElementById('search-query');
+    const searchResults = document.getElementById('search-results');
+    const emptyState = document.getElementById('empty-state');
+    const noResults = document.getElementById('no-results');
+    const resultsContainer = document.getElementById('results-container');
+    const resultsCount = document.getElementById('results-count');
+
+    // Handle search form submission
+    searchForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const query = searchQuery.value.trim();
+      if (!query) {
+        return;
+      }
+
+      // Check API key
+      if (!checkApiKey()) {
+        return;
+      }
+
+      // Get filters
+      const formData = new FormData(searchForm);
+      const contentTypes = formData.getAll('contentType');
+      const dateFrom = formData.get('dateFrom');
+      const dateTo = formData.get('dateTo');
+      const tagsInput = formData.get('tags');
+      const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+
+      // Build query params
+      const params = new URLSearchParams();
+      params.set('query', query);
+      if (contentTypes.length > 0) {
+        params.set('contentType', contentTypes.join(','));
+      }
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      if (tags.length > 0) params.set('tags', tags.join(','));
+
+      // Disable search button
+      searchBtn.disabled = true;
+      searchBtn.innerHTML = '<span class="loading"></span> Searching...';
+
+      // Hide states
+      emptyState.classList.add('hidden');
+      searchResults.classList.add('hidden');
+      noResults.classList.add('hidden');
+
+      try {
+        // TODO: Task 2.4 - Implement actual search API call
+        // For now, show a message that search is not yet implemented
+
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Show placeholder message
+        resultsContainer.innerHTML = `
+          <div class="message message-info">
+            <strong>Search Not Yet Available</strong>
+            <p>The search functionality will be implemented in Task 2.4 (Vector Search Endpoint).</p>
+            <p>Your query: <strong>"${query}"</strong></p>
+          </div>
+        `;
+
+        resultsCount.textContent = 'Search feature coming soon';
+        searchResults.classList.remove('hidden');
+
+      } catch (error) {
+        console.error('Search failed:', error);
+        resultsContainer.innerHTML = `
+          <div class="message message-error">
+            <strong>Search Error</strong>
+            <p>${error.message}</p>
+          </div>
+        `;
+        searchResults.classList.remove('hidden');
+      } finally {
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = '🔍 Search';
+      }
+    });
+
+    // Keyboard shortcut: / to focus search
+    document.addEventListener('keydown', (e) => {
+      if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        e.preventDefault();
+        searchQuery.focus();
+      }
+    });
+
+    // Auto-focus on mobile
+    if (window.innerWidth > 768) {
+      searchQuery.focus();
+    }
+  </script>
+</body>
+</html>

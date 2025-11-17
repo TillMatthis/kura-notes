@@ -15,6 +15,11 @@ import { ApiErrors } from '../types/errors.js';
 const PUBLIC_PATHS = ['/api/health', '/health'];
 
 /**
+ * Static file extensions that don't require authentication
+ */
+const STATIC_FILE_EXTENSIONS = ['.html', '.css', '.js', '.ico', '.png', '.jpg', '.jpeg', '.svg', '.woff', '.woff2', '.ttf', '.eot'];
+
+/**
  * Authentication middleware
  * Checks for valid API key in Authorization header
  */
@@ -24,6 +29,12 @@ export async function authMiddleware(
 ): Promise<void> {
   // Skip authentication for public paths
   if (PUBLIC_PATHS.includes(request.url)) {
+    return;
+  }
+
+  // Skip authentication for static files (web interface)
+  const urlPath = request.url.split('?')[0] || ''; // Remove query params
+  if (STATIC_FILE_EXTENSIONS.some(ext => urlPath.endsWith(ext)) || urlPath === '/') {
     return;
   }
 
