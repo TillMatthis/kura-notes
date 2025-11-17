@@ -197,11 +197,19 @@ p {
 }
 
 .form-label {
-  display: block;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-weight: 500;
   margin-bottom: var(--spacing-sm);
   color: var(--text-primary);
   font-size: 0.875rem;
+}
+
+.char-counter {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .form-input,
@@ -244,6 +252,22 @@ p {
   margin-top: var(--spacing-xs);
   font-size: 0.875rem;
   color: var(--error-color);
+  font-weight: 500;
+}
+
+.form-error:empty {
+  display: none;
+}
+
+.form-input.invalid,
+.form-textarea.invalid {
+  border-color: var(--error-color);
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+.form-input.invalid:focus,
+.form-textarea.invalid:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
 }
 
 /* Buttons */
