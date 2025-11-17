@@ -6,8 +6,10 @@
 
 import { logger } from '../utils/logger.js';
 import type { PdfMetadata } from '../models/content.js';
+import { createRequire } from 'module';
 
-// Import pdf-parse using require for compatibility
+// Import pdf-parse using createRequire for ESM compatibility
+const require = createRequire(import.meta.url);
 const PDFParse = require('pdf-parse');
 
 /**

@@ -48,13 +48,82 @@
 
       <!-- Action Buttons (shown after content loads) -->
       <div id="content-actions" class="hidden mt-4">
-        <div class="grid grid-cols-2">
+        <div class="grid grid-cols-3">
           <button class="btn btn-secondary" onclick="window.history.back()">
             ← Back
+          </button>
+          <button class="btn btn-primary" id="edit-btn" onclick="enterEditMode()">
+            ✏️ Edit
           </button>
           <button class="btn btn-danger" id="delete-btn" onclick="deleteContent()">
             🗑️ Delete
           </button>
+        </div>
+      </div>
+
+      <!-- Edit Form (hidden by default, shown in edit mode) -->
+      <div id="edit-form-container" class="hidden mt-4">
+        <div class="card">
+          <h2 class="mb-4">Edit Content Metadata</h2>
+          <form id="edit-form" onsubmit="saveMetadata(event)">
+            <!-- Title Input -->
+            <div class="form-group">
+              <label for="edit-title" class="form-label">
+                Title
+                <span class="char-counter" id="edit-title-counter">0/200</span>
+              </label>
+              <input
+                type="text"
+                id="edit-title"
+                name="title"
+                class="form-input"
+                placeholder="Enter a title for this content"
+                maxlength="200"
+              />
+              <div class="error-message" id="edit-title-error"></div>
+            </div>
+
+            <!-- Annotation Textarea -->
+            <div class="form-group">
+              <label for="edit-annotation" class="form-label">
+                Annotation
+                <span class="char-counter" id="edit-annotation-counter">0/5000</span>
+              </label>
+              <textarea
+                id="edit-annotation"
+                name="annotation"
+                class="form-input"
+                placeholder="Add context or notes about this content"
+                rows="4"
+                maxlength="5000"
+              ></textarea>
+              <div class="error-message" id="edit-annotation-error"></div>
+            </div>
+
+            <!-- Tags Input -->
+            <div class="form-group">
+              <label for="edit-tags" class="form-label">Tags (comma-separated)</label>
+              <input
+                type="text"
+                id="edit-tags"
+                name="tags"
+                class="form-input"
+                placeholder="e.g., work, important, project-x"
+              />
+              <div class="error-message" id="edit-tags-error"></div>
+              <small class="text-muted">Separate tags with commas. Tags can only contain letters, numbers, dashes, and underscores.</small>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="grid grid-cols-2 mt-4">
+              <button type="button" class="btn btn-secondary" onclick="cancelEdit()">
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-primary" id="save-btn">
+                💾 Save Changes
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -71,7 +140,13 @@
 
   <!-- Scripts -->
   <script src="/js/main.js"></script>
+  <script src="/js/tag-autocomplete.js"></script>
   <script>
+    // State management
+    let currentContent = null;
+    let isEditMode = false;
+    let hasUnsavedChanges = false;
+
     // Get content ID from URL
     function getContentIdFromUrl() {
       const params = new URLSearchParams(window.location.search);
@@ -91,6 +166,9 @@
 
       try {
         const data = await apiRequest(`/api/content/${contentId}`);
+
+        // Store current content for edit mode
+        currentContent = data;
 
         // Build metadata HTML
         const metadataHtml = buildMetadataHtml(data);
@@ -398,6 +476,229 @@
         deleteBtn.innerHTML = originalBtnText;
       }
     }
+
+    // Enter edit mode
+    function enterEditMode() {
+      if (!currentContent) {
+        alert('Content not loaded');
+        return;
+      }
+
+      isEditMode = true;
+
+      // Populate form with current values
+      document.getElementById('edit-title').value = currentContent.title || '';
+      document.getElementById('edit-annotation').value = currentContent.annotation || '';
+      document.getElementById('edit-tags').value = currentContent.tags ? currentContent.tags.join(', ') : '';
+
+      // Update character counters
+      updateCharCounter('edit-title', 'edit-title-counter', 200);
+      updateCharCounter('edit-annotation', 'edit-annotation-counter', 5000);
+
+      // Show edit form and hide action buttons
+      document.getElementById('edit-form-container').classList.remove('hidden');
+      document.getElementById('content-actions').classList.add('hidden');
+
+      // Initialize tag autocomplete for edit form
+      if (typeof TagAutocomplete !== 'undefined') {
+        new TagAutocomplete('edit-tags', {
+          apiEndpoint: `${API_BASE_URL}/api/tags/search`,
+          minChars: 1,
+          debounceMs: 200,
+        });
+      }
+
+      // Set up character counters
+      document.getElementById('edit-title').addEventListener('input', () => {
+        updateCharCounter('edit-title', 'edit-title-counter', 200);
+        hasUnsavedChanges = true;
+      });
+
+      document.getElementById('edit-annotation').addEventListener('input', () => {
+        updateCharCounter('edit-annotation', 'edit-annotation-counter', 5000);
+        hasUnsavedChanges = true;
+      });
+
+      document.getElementById('edit-tags').addEventListener('input', () => {
+        hasUnsavedChanges = true;
+      });
+
+      // Scroll to edit form
+      document.getElementById('edit-form-container').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Cancel edit mode
+    function cancelEdit() {
+      if (hasUnsavedChanges) {
+        const confirmed = confirm('You have unsaved changes. Are you sure you want to cancel?');
+        if (!confirmed) {
+          return;
+        }
+      }
+
+      isEditMode = false;
+      hasUnsavedChanges = false;
+
+      // Hide edit form and show action buttons
+      document.getElementById('edit-form-container').classList.add('hidden');
+      document.getElementById('content-actions').classList.remove('hidden');
+
+      // Clear form
+      document.getElementById('edit-form').reset();
+    }
+
+    // Save metadata
+    async function saveMetadata(event) {
+      event.preventDefault();
+
+      const contentId = getContentIdFromUrl();
+      if (!contentId) {
+        alert('No content ID found');
+        return;
+      }
+
+      // Get form values
+      const title = document.getElementById('edit-title').value.trim();
+      const annotation = document.getElementById('edit-annotation').value.trim();
+      const tagsInput = document.getElementById('edit-tags').value.trim();
+
+      // Parse tags (comma-separated)
+      const tags = tagsInput
+        ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
+        : [];
+
+      // Validate inputs
+      if (title && title.length > 200) {
+        showValidationError('edit-title-error', 'Title cannot exceed 200 characters');
+        return;
+      }
+
+      if (annotation && annotation.length > 5000) {
+        showValidationError('edit-annotation-error', 'Annotation cannot exceed 5000 characters');
+        return;
+      }
+
+      if (tags.length > 20) {
+        showValidationError('edit-tags-error', 'Cannot exceed 20 tags');
+        return;
+      }
+
+      // Validate tag format
+      const tagPattern = /^[a-zA-Z0-9-_]+$/;
+      for (const tag of tags) {
+        if (tag.length > 50) {
+          showValidationError('edit-tags-error', `Tag "${tag}" cannot exceed 50 characters`);
+          return;
+        }
+        if (!tagPattern.test(tag)) {
+          showValidationError('edit-tags-error', `Invalid tag format: "${tag}". Tags can only contain letters, numbers, dashes, and underscores.`);
+          return;
+        }
+      }
+
+      // Clear any previous errors
+      clearValidationErrors();
+
+      // Show loading state
+      const saveBtn = document.getElementById('save-btn');
+      const originalBtnText = saveBtn.innerHTML;
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '⏳ Saving...';
+
+      try {
+        // Call PATCH endpoint
+        const response = await apiRequest(`/api/content/${contentId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            title: title || null,
+            annotation: annotation || null,
+            tags: tags.length > 0 ? tags : [],
+          }),
+        });
+
+        // Update current content with new data
+        currentContent = { ...currentContent, ...response.content };
+
+        // Exit edit mode
+        isEditMode = false;
+        hasUnsavedChanges = false;
+
+        // Hide edit form and show action buttons
+        document.getElementById('edit-form-container').classList.add('hidden');
+        document.getElementById('content-actions').classList.remove('hidden');
+
+        // Reload content to show updated metadata
+        await loadContent();
+
+        // Show success message
+        showSuccessMessage('Changes saved successfully!');
+      } catch (error) {
+        console.error('Failed to save changes:', error);
+
+        // Show error message
+        alert(error.message || 'Failed to save changes. Please try again.');
+
+        // Restore button state
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalBtnText;
+      }
+    }
+
+    // Update character counter
+    function updateCharCounter(inputId, counterId, maxLength) {
+      const input = document.getElementById(inputId);
+      const counter = document.getElementById(counterId);
+      const currentLength = input.value.length;
+      counter.textContent = `${currentLength}/${maxLength}`;
+
+      // Change color if approaching limit
+      if (currentLength > maxLength * 0.9) {
+        counter.style.color = 'var(--danger-color, #dc3545)';
+      } else if (currentLength > maxLength * 0.8) {
+        counter.style.color = 'var(--warning-color, #ffc107)';
+      } else {
+        counter.style.color = 'var(--text-muted, #6c757d)';
+      }
+    }
+
+    // Show validation error
+    function showValidationError(errorElementId, message) {
+      const errorElement = document.getElementById(errorElementId);
+      errorElement.textContent = message;
+      errorElement.style.display = 'block';
+    }
+
+    // Clear validation errors
+    function clearValidationErrors() {
+      const errorElements = document.querySelectorAll('.error-message');
+      errorElements.forEach(el => {
+        el.textContent = '';
+        el.style.display = 'none';
+      });
+    }
+
+    // Show success message
+    function showSuccessMessage(message) {
+      // Create a simple toast notification
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 10000; animation: slideIn 0.3s ease-out;';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      // Remove after 3 seconds
+      setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // Warn about unsaved changes when leaving page
+    window.addEventListener('beforeunload', (event) => {
+      if (hasUnsavedChanges) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    });
 
     // Escape HTML to prevent XSS
     function escapeHtml(text) {

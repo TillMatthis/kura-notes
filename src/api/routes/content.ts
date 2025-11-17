@@ -614,5 +614,133 @@ export async function registerContentRoutes(
     }
   );
 
+  /**
+   * PATCH /api/content/:id
+   * Update content metadata (title, annotation, tags)
+   */
+  fastify.patch<{
+    Params: { id: string };
+    Body: { title?: string; annotation?: string; tags?: string[] };
+  }>(
+    '/api/content/:id',
+    async (
+      request: FastifyRequest<{
+        Params: { id: string };
+        Body: { title?: string; annotation?: string; tags?: string[] };
+      }>,
+      _reply: FastifyReply
+    ): Promise<{ success: true; content: ContentMetadata; message: string; timestamp: string }> => {
+      const { id } = request.params;
+      const { title, annotation, tags } = request.body;
+
+      logger.debug('Content metadata update request', { id, title, annotation, tags });
+
+      // Check if content exists
+      const existingContent = db.getContentById(id);
+      if (!existingContent) {
+        logger.warn('Content not found for update', { id });
+        throw ApiErrors.notFound('Content not found');
+      }
+
+      // Validate inputs
+      if (title !== undefined) {
+        if (typeof title !== 'string') {
+          throw ApiErrors.validationError('Title must be a string');
+        }
+        if (title.length > 200) {
+          throw ApiErrors.validationError('Title cannot exceed 200 characters');
+        }
+      }
+
+      if (annotation !== undefined) {
+        if (typeof annotation !== 'string') {
+          throw ApiErrors.validationError('Annotation must be a string');
+        }
+        if (annotation.length > 5000) {
+          throw ApiErrors.validationError('Annotation cannot exceed 5000 characters');
+        }
+      }
+
+      if (tags !== undefined) {
+        if (!Array.isArray(tags)) {
+          throw ApiErrors.validationError('Tags must be an array');
+        }
+        if (tags.length > 20) {
+          throw ApiErrors.validationError('Cannot exceed 20 tags');
+        }
+
+        // Validate tag format
+        const tagPattern = /^[a-zA-Z0-9-_]+$/;
+        for (const tag of tags) {
+          if (typeof tag !== 'string') {
+            throw ApiErrors.validationError('Each tag must be a string');
+          }
+          if (tag.length > 50) {
+            throw ApiErrors.validationError('Each tag cannot exceed 50 characters');
+          }
+          if (!tagPattern.test(tag)) {
+            throw ApiErrors.validationError(
+              `Invalid tag format: "${tag}". Tags can only contain letters, numbers, dashes, and underscores.`
+            );
+          }
+        }
+      }
+
+      try {
+        // Update content metadata in database
+        const updatedContent = db.updateContent(id, {
+          title,
+          annotation,
+          tags,
+        });
+
+        if (!updatedContent) {
+          logger.error('Failed to update content metadata', { id });
+          throw ApiErrors.storageError('Failed to update content metadata');
+        }
+
+        logger.info('Content metadata updated successfully', {
+          id,
+          updatedFields: {
+            title: title !== undefined,
+            annotation: annotation !== undefined,
+            tags: tags !== undefined,
+          },
+        });
+
+        // Return updated metadata (exclude file_path and extracted_text)
+        const metadata: ContentMetadata = {
+          id: updatedContent.id,
+          content_type: updatedContent.content_type,
+          title: updatedContent.title,
+          annotation: updatedContent.annotation,
+          tags: updatedContent.tags,
+          source: updatedContent.source,
+          image_metadata: updatedContent.image_metadata,
+          pdf_metadata: updatedContent.pdf_metadata,
+          created_at: updatedContent.created_at,
+          updated_at: updatedContent.updated_at,
+        };
+
+        return {
+          success: true,
+          content: metadata,
+          message: 'Content metadata updated successfully',
+          timestamp: new Date().toISOString(),
+        };
+      } catch (error) {
+        // If it's already an API error, re-throw it
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
+        logger.error('Unexpected error updating content metadata', { error, id });
+        throw ApiErrors.storageError(
+          error instanceof Error ? error.message : 'Failed to update content metadata'
+        );
+      }
+    }
+  );
+
   logger.info('Content retrieval routes registered');
 }
