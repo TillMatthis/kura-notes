@@ -16,11 +16,11 @@
 ## Progress Tracking
 
 **Phase 1 (Foundation):** 7/12 tasks complete
-**Phase 2 (Search):** 1/8 tasks complete
+**Phase 2 (Search):** 2/8 tasks complete
 **Phase 3 (Complete MVP):** 0/10 tasks complete
 **Phase 4 (Polish & Deploy):** 0/6 tasks complete
 
-**Overall Progress:** 8/36 tasks complete (22%)
+**Overall Progress:** 9/36 tasks complete (25%)
 
 ---
 
@@ -606,35 +606,54 @@
 ---
 
 ### Task 2.2: OpenAI Embedding Generation
-**Branch:** `task/014-embedding-generation`  
-**Estimated Time:** 2-3 hours  
+**Branch:** `claude/add-openai-embeddings-01SMjBSjVayjNSgrUWdwmAT2`
+**Estimated Time:** 2-3 hours
 **Depends On:** Task 2.1
 
-- [ ] Install OpenAI SDK
-- [ ] Create embedding service
-  - Generate embeddings from text
-  - Handle API errors
-  - Implement retry logic
-  - Cache embeddings (optional)
-- [ ] Configure embedding model
+- [x] Install OpenAI SDK (already installed - openai v4.24.1)
+- [x] Create embedding service (src/services/embeddingService.ts)
+  - Generate embeddings from text using OpenAI API
+  - Handle API errors with clear error messages
+  - Implement retry logic with exponential backoff (3 attempts)
+  - Singleton pattern for consistent instance management
+- [x] Configure embedding model
   - Use text-embedding-3-small
-  - Set max tokens (8191)
-- [ ] Add truncation for long text
-  - Truncate to 8000 chars
-  - Log when truncation occurs
-- [ ] Handle rate limits
-  - Retry with exponential backoff
-  - Log rate limit errors
-- [ ] Write tests for embedding generation
+  - Load configuration from environment (OPENAI_API_KEY, OPENAI_EMBEDDING_MODEL)
+- [x] Add truncation for long text
+  - Truncate to 8000 chars (configurable max)
+  - Log when truncation occurs with percentage truncated
+- [x] Handle rate limits
+  - Retry with exponential backoff (1s, 2s, 4s)
+  - Log rate limit errors with attempt information
+  - Distinguish between transient and permanent errors
+- [x] Write tests for embedding generation
+  - 13 passing tests (16 total - 3 skipped integration tests)
+  - Tests cover: singleton pattern, availability checks, error handling, text truncation
+  - Integration tests documented (require real API key)
+- [x] Add API key validation on startup
+  - Initialize embedding service in src/index.ts
+  - Log availability status with clear warnings if API key missing
+  - Application continues without embeddings if key not configured
 
 **Acceptance Criteria:**
-- Can generate embeddings from text
-- Handles long text (truncation)
-- Retries on errors
-- Rate limits handled
-- Tests pass
+- ✅ Can generate embeddings from text
+- ✅ Handles long text (truncates to 8000 chars with logging)
+- ✅ Retries on failures (3 attempts with exponential backoff)
+- ✅ Rate limits handled (detected and retried)
+- ✅ Tests pass (13/13 passing)
+- ✅ API key validated on startup
 
-**Completion Date:** _________
+**Completion Date:** 2025-11-17
+
+**Notes:**
+- Created comprehensive embedding service following vectorStore patterns
+- Implements singleton pattern for consistent instance management
+- Handles both transient (network, timeout, rate limit) and permanent errors
+- Logs truncation with original/processed lengths and percentage
+- Service gracefully handles missing API key (logs warning, continues without embeddings)
+- Tests cover error handling, validation, and service structure
+- Integration tests provided but skipped by default (to avoid API costs)
+- Ready for Task 2.3: integration into capture pipeline
 
 ---
 
