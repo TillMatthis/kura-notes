@@ -24,11 +24,13 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerCaptureRoutes } from './routes/capture.js';
 import { registerContentRoutes } from './routes/content.js';
 import { registerSearchRoutes } from './routes/search.js';
+import { registerTagRoutes } from './routes/tags.js';
 import { getFileStorageService } from '../services/fileStorage.js';
 import { getDatabaseService } from '../services/database/database.service.js';
 import { getEmbeddingService } from '../services/embeddingService.js';
 import { getVectorStoreService } from '../services/vectorStore.js';
 import { EmbeddingPipelineService } from '../services/embeddingPipeline.js';
+import { getTagService } from '../services/tagService.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -167,6 +169,7 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   const fileStorage = getFileStorageService();
   const embeddingService = getEmbeddingService();
   const vectorStore = getVectorStoreService();
+  const tagService = getTagService(db);
 
   // Create embedding pipeline service
   const embeddingPipeline = new EmbeddingPipelineService(
@@ -186,6 +189,9 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
 
   // Search routes (Task 2.4)
   await registerSearchRoutes(fastify, db, embeddingService, vectorStore);
+
+  // Tag routes (Task 3.4)
+  await registerTagRoutes(fastify, tagService);
 
   logger.info('Routes registered successfully');
 }

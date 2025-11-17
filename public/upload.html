@@ -21,6 +21,7 @@
           <li><a href="/create.html" class="nav-link">Create Note</a></li>
           <li><a href="/upload.html" class="nav-link">Upload File</a></li>
           <li><a href="/search.html" class="nav-link">Search</a></li>
+          <li><a href="/tags.html" class="nav-link">Tags</a></li>
         </ul>
       </nav>
     </div>
@@ -156,6 +157,7 @@
 
   <!-- Scripts -->
   <script src="/js/main.js"></script>
+  <script src="/js/tag-autocomplete.js"></script>
   <script>
     const form = document.getElementById('upload-form');
     const fileInput = document.getElementById('file');
@@ -165,6 +167,17 @@
     const imagePreview = document.getElementById('image-preview');
     const progressContainer = document.getElementById('upload-progress');
     const progressBar = document.getElementById('progress-bar');
+
+    // Initialize tag autocomplete
+    const tagsInput = document.getElementById('tags');
+    let tagAutocomplete = null;
+    if (window.initTagAutocomplete && tagsInput) {
+      tagAutocomplete = initTagAutocomplete(tagsInput, {
+        minChars: 1,
+        maxSuggestions: 10,
+        debounceMs: 200
+      });
+    }
     const progressText = document.getElementById('progress-text');
 
     // Format file size
