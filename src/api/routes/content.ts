@@ -256,5 +256,88 @@ export async function registerContentRoutes(
     }
   );
 
+  /**
+   * GET /api/content/:id/file
+   * Get raw file content (for images, PDFs, etc.)
+   * Streams the file with appropriate content-type headers
+   */
+  fastify.get<{ Params: { id: string } }>(
+    '/api/content/:id/file',
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply
+    ): Promise<void> => {
+      const { id } = request.params;
+
+      logger.debug('File download request', { id });
+
+      // Get metadata from database
+      const metadata = db.getContentById(id);
+
+      if (!metadata) {
+        logger.warn('Content not found', { id });
+        throw ApiErrors.notFound('Content not found');
+      }
+
+      try {
+        // Create read stream for the file
+        const streamResult = fileStorage.createReadStream(id);
+
+        if (!streamResult.success || !streamResult.stream) {
+          logger.error('Failed to create file stream', {
+            id,
+            error: streamResult.error,
+          });
+          throw ApiErrors.storageError('Failed to read file');
+        }
+
+        // Determine content type from file extension
+        const filePath = metadata.file_path;
+        let contentType = 'application/octet-stream';
+
+        if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+          contentType = 'image/jpeg';
+        } else if (filePath.endsWith('.png')) {
+          contentType = 'image/png';
+        } else if (filePath.endsWith('.gif')) {
+          contentType = 'image/gif';
+        } else if (filePath.endsWith('.webp')) {
+          contentType = 'image/webp';
+        } else if (filePath.endsWith('.pdf')) {
+          contentType = 'application/pdf';
+        }
+
+        // Set headers
+        reply.header('Content-Type', contentType);
+        reply.header('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+
+        // Set Content-Disposition for PDFs to trigger download
+        if (contentType === 'application/pdf') {
+          const filename = metadata.title || `document-${id}.pdf`;
+          reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+        }
+
+        logger.info('Streaming file', {
+          id,
+          contentType,
+          filePath: metadata.file_path,
+        });
+
+        // Stream the file
+        return reply.send(streamResult.stream);
+      } catch (error) {
+        // If it's already an API error, re-throw it
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
+        logger.error('Unexpected error streaming file', { error, id });
+        throw ApiErrors.storageError(
+          error instanceof Error ? error.message : 'Failed to stream file'
+        );
+      }
+    }
+  );
+
   logger.info('Content retrieval routes registered');
 }
