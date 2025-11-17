@@ -11,7 +11,9 @@
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch --runInBand",
     "lint": "eslint src/**/*.ts",
-    "format": "prettier --write \"src/**/*.ts\""
+    "format": "prettier --write \"src/**/*.ts\"",
+    "generate-test-data": "tsx scripts/generateTestData.ts",
+    "measure-performance": "tsx scripts/measurePerformance.ts"
   },
   "keywords": [
     "knowledge-management",
