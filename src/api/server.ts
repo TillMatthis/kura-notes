@@ -22,7 +22,9 @@ import { requestLogger, responseLogger } from './middleware/requestLogger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerCaptureRoutes } from './routes/capture.js';
+import { registerContentRoutes } from './routes/content.js';
 import { getFileStorageService } from '../services/fileStorage.js';
+import { getDatabaseService } from '../services/database/database.service.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -163,7 +165,10 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   const fileStorage = getFileStorageService();
   await registerCaptureRoutes(fastify, fileStorage);
 
-  // TODO: Task 1.10 - Register content retrieval routes
+  // Content retrieval routes (Task 1.10)
+  const db = getDatabaseService();
+  await registerContentRoutes(fastify, db, fileStorage);
+
   // TODO: Task 2.4 - Register search routes
 
   logger.info('Routes registered successfully');
