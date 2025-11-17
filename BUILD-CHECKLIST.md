@@ -380,37 +380,55 @@
 ---
 
 ### Task 1.9: Create Note Interface
-**Branch:** `task/009-create-note-ui`  
-**Estimated Time:** 2-3 hours  
+**Branch:** `claude/create-note-form-01BjwdkfeULZehsNH1REg7sy`
+**Estimated Time:** 2-3 hours
 **Depends On:** Task 1.7, Task 1.8
 
-- [ ] Create note creation form
-  - Textarea for content (autosize)
-  - Title field (optional)
-  - Tags input (comma-separated or chips)
-  - Submit button
-- [ ] Add client-side validation
-  - Required fields
-  - Max length checks
-- [ ] Implement form submission
-  - Prevent default form behavior
-  - Call /api/capture with fetch
-  - Show loading state
-  - Display success/error messages
-- [ ] Add keyboard shortcuts
-  - Cmd/Ctrl+Enter to save
-- [ ] Style the form (basic, functional)
-- [ ] Test error handling
+- [x] Create note creation form
+  - Textarea for content (autosize) ✅
+  - Title field (optional) ✅
+  - Tags input (comma-separated) ✅
+  - Submit button ✅
+- [x] Add client-side validation
+  - Required fields ✅
+  - Max length checks ✅
+  - Character counter for title ✅
+  - Inline error messages ✅
+  - Field-specific validation feedback ✅
+- [x] Implement form submission
+  - Prevent default form behavior ✅
+  - Call /api/capture with fetch ✅
+  - Show loading state ✅
+  - Display success/error messages ✅
+- [x] Add keyboard shortcuts
+  - Cmd/Ctrl+Enter to save ✅
+  - Esc to clear form ✅
+- [x] Style the form (basic, functional) ✅
+- [x] Test error handling ✅
 
 **Acceptance Criteria:**
-- Can create notes through web interface
-- Validation works
-- Success message shows after save
-- Errors displayed clearly
-- Works on mobile
-- Keyboard shortcuts work
+- ✅ Can create notes through web interface
+- ✅ Validation works (client-side and server-side tested)
+- ✅ Success message shows after save
+- ✅ Errors displayed clearly (inline errors with red borders)
+- ✅ Works on mobile (responsive design from Task 1.8)
+- ✅ Keyboard shortcuts work (Cmd/Ctrl+Enter, Esc)
 
-**Completion Date:** _________
+**Completion Date:** 2025-11-17
+
+**Notes:**
+- Enhanced existing form from Task 1.8 (70% already complete)
+- Added auto-resize for textareas (grows with content)
+- Added character counter for title field (shows count/200)
+- Implemented comprehensive client-side validation:
+  - Content: required, max 1MB
+  - Title: optional, max 200 chars
+  - Annotation: optional, max 5000 chars
+  - Tags: optional, max 20 tags, each max 50 chars, alphanumeric/dash/underscore only
+- Validation triggers on blur and on submit
+- Invalid fields show red border and inline error message
+- All validation aligns with backend schema (capture.ts:14-115)
+- Tested 6+ validation scenarios successfully
 
 ---
 
