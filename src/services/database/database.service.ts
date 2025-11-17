@@ -139,9 +139,9 @@ export class DatabaseService {
 
     const stmt = this.db.prepare(`
       INSERT INTO content (
-        id, file_path, content_type, title, source, tags, annotation, extracted_text
+        id, file_path, content_type, title, source, tags, annotation, extracted_text, embedding_status
       ) VALUES (
-        @id, @file_path, @content_type, @title, @source, @tags, @annotation, @extracted_text
+        @id, @file_path, @content_type, @title, @source, @tags, @annotation, @extracted_text, 'pending'
       )
     `);
 
@@ -242,6 +242,11 @@ export class DatabaseService {
     if (input.extracted_text !== undefined) {
       updates.push('extracted_text = @extracted_text');
       params.extracted_text = input.extracted_text;
+    }
+
+    if (input.embedding_status !== undefined) {
+      updates.push('embedding_status = @embedding_status');
+      params.embedding_status = input.embedding_status;
     }
 
     // Always update the updated_at timestamp

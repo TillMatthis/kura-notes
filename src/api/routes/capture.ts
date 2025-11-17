@@ -8,6 +8,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { MultipartFile } from '@fastify/multipart';
 import { logger } from '../../utils/logger.js';
 import { FileStorageService } from '../../services/fileStorage.js';
+import { EmbeddingPipelineService } from '../../services/embeddingPipeline.js';
 import { ApiErrors } from '../types/errors.js';
 import { getContentTypeFromMime } from '../../utils/fileValidation.js';
 import type { ContentType } from '../../models/content.js';
@@ -65,7 +66,8 @@ function validateTags(tags: string[]): void {
  */
 export async function registerCaptureRoutes(
   fastify: FastifyInstance,
-  fileStorage: FileStorageService
+  fileStorage: FileStorageService,
+  embeddingPipeline: EmbeddingPipelineService
 ): Promise<void> {
   /**
    * POST /api/capture
@@ -77,10 +79,10 @@ export async function registerCaptureRoutes(
     async (request: FastifyRequest, _reply: FastifyReply): Promise<CaptureResponse> => {
       // Check if this is a multipart request (file upload)
       if (request.isMultipart()) {
-        return await handleFileUpload(request, fileStorage);
+        return await handleFileUpload(request, fileStorage, embeddingPipeline);
       } else {
         // Handle JSON text content
-        return await handleTextCapture(request, fileStorage);
+        return await handleTextCapture(request, fileStorage, embeddingPipeline);
       }
     }
   );
@@ -93,7 +95,8 @@ export async function registerCaptureRoutes(
  */
 async function handleTextCapture(
   request: FastifyRequest,
-  fileStorage: FileStorageService
+  fileStorage: FileStorageService,
+  embeddingPipeline: EmbeddingPipelineService
 ): Promise<CaptureResponse> {
   const { content, title, annotation, tags } = request.body as CaptureTextRequest;
 
@@ -137,6 +140,16 @@ async function handleTextCapture(
       filePath: result.filePath,
     });
 
+    // Trigger async embedding generation (non-blocking)
+    embeddingPipeline.processContentAsync({
+      contentId: result.id!,
+      contentType: 'text',
+      content,
+      annotation,
+      title,
+      tags,
+    });
+
     return {
       success: true,
       id: result.id!,
@@ -162,7 +175,8 @@ async function handleTextCapture(
  */
 async function handleFileUpload(
   request: FastifyRequest,
-  fileStorage: FileStorageService
+  fileStorage: FileStorageService,
+  embeddingPipeline: EmbeddingPipelineService
 ): Promise<CaptureResponse> {
   try {
     let file: MultipartFile | null = null;
@@ -248,6 +262,17 @@ async function handleFileUpload(
       filePath: result.filePath,
       contentType,
       originalFilename: file.filename,
+    });
+
+    // Trigger async embedding generation (non-blocking)
+    embeddingPipeline.processContentAsync({
+      contentId: result.id!,
+      contentType,
+      content: fileBuffer,
+      annotation: metadata.annotation,
+      title: metadata.title,
+      originalFilename: file.filename,
+      tags: metadata.tags,
     });
 
     return {

@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS content (
   tags TEXT,                            -- JSON array of tags: '["tag1","tag2"]'
   annotation TEXT,                      -- User-provided context/notes
   extracted_text TEXT,                  -- Text content (for search/display)
+  embedding_status TEXT DEFAULT 'pending', -- Embedding status: 'pending' | 'completed' | 'failed'
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -35,6 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_content_type ON content(content_type);
 CREATE INDEX IF NOT EXISTS idx_created_at ON content(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_updated_at ON content(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_source ON content(source);
+CREATE INDEX IF NOT EXISTS idx_embedding_status ON content(embedding_status);
 
 -- =============================================================================
 -- Full-Text Search (FTS5) Table
