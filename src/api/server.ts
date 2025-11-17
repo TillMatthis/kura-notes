@@ -23,6 +23,7 @@ import { authMiddleware } from './middleware/auth.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerCaptureRoutes } from './routes/capture.js';
 import { registerContentRoutes } from './routes/content.js';
+import { registerSearchRoutes } from './routes/search.js';
 import { getFileStorageService } from '../services/fileStorage.js';
 import { getDatabaseService } from '../services/database/database.service.js';
 import { getEmbeddingService } from '../services/embeddingService.js';
@@ -183,7 +184,8 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   // Content retrieval routes (Task 1.10 + Task 1.12)
   await registerContentRoutes(fastify, db, fileStorage, vectorStore);
 
-  // TODO: Task 2.4 - Register search routes
+  // Search routes (Task 2.4)
+  await registerSearchRoutes(fastify, db, embeddingService, vectorStore);
 
   logger.info('Routes registered successfully');
 }
