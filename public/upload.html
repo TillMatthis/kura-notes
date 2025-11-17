@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Upload files to KURA Notes">
+  <title>Upload File - KURA Notes</title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <!-- Header / Navigation -->
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="/" class="nav-brand">
+          <span>📚</span>
+          <span>KURA Notes</span>
+        </a>
+        <ul class="nav-menu">
+          <li><a href="/" class="nav-link">Home</a></li>
+          <li><a href="/create.html" class="nav-link">Create Note</a></li>
+          <li><a href="/upload.html" class="nav-link">Upload File</a></li>
+          <li><a href="/search.html" class="nav-link">Search</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main">
+    <div class="container container-narrow">
+      <h1>Upload File</h1>
+      <p class="text-muted mb-4">
+        Upload images (JPEG, PNG) or PDF documents
+      </p>
+
+      <!-- Upload Form -->
+      <div class="card">
+        <form id="upload-form">
+          <!-- File Input -->
+          <div class="form-group">
+            <label for="file" class="form-label">Select File *</label>
+            <input
+              type="file"
+              id="file"
+              name="file"
+              class="form-input"
+              accept="image/jpeg,image/png,application/pdf"
+              required
+            >
+            <span class="form-help">
+              Supported formats: JPEG, PNG, PDF (max 50MB)
+            </span>
+          </div>
+
+          <!-- File Preview -->
+          <div id="file-preview" class="hidden" style="margin-bottom: var(--spacing-lg);">
+            <div style="border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: var(--spacing-md); background-color: var(--bg-secondary);">
+              <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                <span id="file-icon" style="font-size: 2rem;"></span>
+                <div style="flex: 1;">
+                  <div id="file-name" style="font-weight: 500;"></div>
+                  <div id="file-size" style="font-size: 0.875rem; color: var(--text-muted);"></div>
+                </div>
+              </div>
+              <img id="image-preview" class="hidden" style="margin-top: var(--spacing-md); max-width: 100%; border-radius: var(--radius-md);" alt="Preview">
+            </div>
+          </div>
+
+          <!-- Title Field -->
+          <div class="form-group">
+            <label for="title" class="form-label">Title (optional)</label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              class="form-input"
+              placeholder="Enter a title for this file"
+              maxlength="200"
+            >
+            <span class="form-help">A descriptive title (defaults to filename)</span>
+          </div>
+
+          <!-- Annotation Field -->
+          <div class="form-group">
+            <label for="annotation" class="form-label">Annotation (optional)</label>
+            <textarea
+              id="annotation"
+              name="annotation"
+              class="form-textarea"
+              placeholder="Add context, description, or notes about this file..."
+              rows="4"
+            ></textarea>
+            <span class="form-help">Additional context for better search results</span>
+          </div>
+
+          <!-- Tags Field -->
+          <div class="form-group">
+            <label for="tags" class="form-label">Tags (optional)</label>
+            <input
+              type="text"
+              id="tags"
+              name="tags"
+              class="form-input"
+              placeholder="receipt, screenshot, document (comma-separated)"
+            >
+            <span class="form-help">Comma-separated tags for organizing</span>
+          </div>
+
+          <!-- Upload Progress -->
+          <div id="upload-progress" class="hidden" style="margin-bottom: var(--spacing-lg);">
+            <div style="background-color: var(--bg-tertiary); border-radius: var(--radius-md); height: 8px; overflow: hidden;">
+              <div id="progress-bar" style="background-color: var(--primary-color); height: 100%; width: 0%; transition: width 0.3s;"></div>
+            </div>
+            <p id="progress-text" style="font-size: 0.875rem; color: var(--text-muted); margin-top: var(--spacing-sm);"></p>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="form-group">
+            <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+              📤 Upload File
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="clearForm()">
+              Clear
+            </button>
+          </div>
+        </form>
+
+        <!-- Success/Error Messages -->
+        <div id="form-message" class="hidden"></div>
+      </div>
+
+      <!-- File Limits Info -->
+      <div class="card mt-4">
+        <h3>Supported File Types</h3>
+        <ul style="margin-left: 1.5rem; color: var(--text-secondary);">
+          <li><strong>Images:</strong> JPEG, PNG</li>
+          <li><strong>Documents:</strong> PDF</li>
+          <li><strong>Maximum size:</strong> 50MB per file</li>
+        </ul>
+        <p class="text-muted mt-3" style="font-size: 0.875rem;">
+          Note: OCR for images and PDF text extraction will be added in a future update.
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <p>KURA Notes v0.1.0 - Personal Knowledge Management</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/js/main.js"></script>
+  <script>
+    const form = document.getElementById('upload-form');
+    const fileInput = document.getElementById('file');
+    const submitBtn = document.getElementById('submit-btn');
+    const messageEl = document.getElementById('form-message');
+    const filePreview = document.getElementById('file-preview');
+    const imagePreview = document.getElementById('image-preview');
+    const progressContainer = document.getElementById('upload-progress');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+
+    // Format file size
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // Handle file selection
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) {
+        filePreview.classList.add('hidden');
+        return;
+      }
+
+      // Show file info
+      document.getElementById('file-name').textContent = file.name;
+      document.getElementById('file-size').textContent = formatFileSize(file.size);
+
+      // Set icon based on type
+      const icon = file.type.startsWith('image/') ? '🖼️' : '📄';
+      document.getElementById('file-icon').textContent = icon;
+
+      // Show preview for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          imagePreview.src = e.target.result;
+          imagePreview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      } else {
+        imagePreview.classList.add('hidden');
+      }
+
+      filePreview.classList.remove('hidden');
+
+      // Auto-fill title if empty
+      const titleInput = document.getElementById('title');
+      if (!titleInput.value) {
+        titleInput.value = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      }
+    });
+
+    // Clear form
+    function clearForm() {
+      form.reset();
+      filePreview.classList.add('hidden');
+      messageEl.className = 'hidden';
+      progressContainer.classList.add('hidden');
+      progressBar.style.width = '0%';
+    }
+
+    // Show message
+    function showFormMessage(message, type) {
+      messageEl.textContent = message;
+      messageEl.className = `message message-${type}`;
+      messageEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // Handle form submission
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Check API key
+      if (!checkApiKey()) {
+        return;
+      }
+
+      const file = fileInput.files[0];
+      if (!file) {
+        showFormMessage('Please select a file', 'error');
+        return;
+      }
+
+      // Check file size (50MB limit)
+      const maxSize = 50 * 1024 * 1024;
+      if (file.size > maxSize) {
+        showFormMessage('File size exceeds 50MB limit', 'error');
+        return;
+      }
+
+      // Get form data
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const title = document.getElementById('title').value;
+      const annotation = document.getElementById('annotation').value;
+      const tagsInput = document.getElementById('tags').value;
+
+      // Add metadata
+      const metadata = {
+        contentType: file.type.startsWith('image/') ? 'image' : 'pdf',
+        ...(title && { title }),
+        ...(annotation && { annotation }),
+      };
+
+      // Parse tags
+      if (tagsInput) {
+        const tags = tagsInput.split(',').map(t => t.trim()).filter(t => t);
+        if (tags.length > 0) {
+          metadata.tags = tags;
+        }
+      }
+
+      formData.append('metadata', JSON.stringify(metadata));
+
+      // Disable submit button and show progress
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="loading"></span> Uploading...';
+      progressContainer.classList.remove('hidden');
+      progressBar.style.width = '0%';
+      progressText.textContent = 'Starting upload...';
+
+      try {
+        // Simulate progress (real progress tracking would require XHR)
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+          progress += 10;
+          if (progress <= 90) {
+            progressBar.style.width = progress + '%';
+            progressText.textContent = `Uploading... ${progress}%`;
+          }
+        }, 200);
+
+        // Make API request
+        const response = await fetch(`${API_BASE_URL}/api/capture`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('kura_api_key')}`,
+          },
+          body: formData,
+        });
+
+        clearInterval(progressInterval);
+        progressBar.style.width = '100%';
+        progressText.textContent = 'Upload complete!';
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ message: response.statusText }));
+          throw new Error(error.message || `Upload failed: ${response.status}`);
+        }
+
+        // Show success message
+        showFormMessage('File uploaded successfully! Redirecting...', 'success');
+
+        // Redirect after delay
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1500);
+
+      } catch (error) {
+        console.error('Upload failed:', error);
+        showFormMessage(`Upload failed: ${error.message}`, 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '📤 Upload File';
+        progressContainer.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

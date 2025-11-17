@@ -12,6 +12,9 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -20,6 +23,10 @@ import { authMiddleware } from './middleware/auth.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerCaptureRoutes } from './routes/capture.js';
 import { getFileStorageService } from '../services/fileStorage.js';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Create and configure Fastify server
@@ -92,6 +99,15 @@ async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   logger.info('Multipart configured', {
     maxFileSize: `${Math.round(config.maxFileSize / 1024 / 1024)}MB`,
   });
+
+  // Static file serving (for web interface)
+  const publicPath = path.join(__dirname, '..', '..', 'public');
+  await fastify.register(fastifyStatic, {
+    root: publicPath,
+    prefix: '/', // Serve files at root
+  });
+
+  logger.info('Static file serving configured', { publicPath });
 
   logger.debug('Fastify plugins registered successfully');
 }
