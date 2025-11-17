@@ -288,6 +288,7 @@
       const thumbnailHtml = result.contentType === 'image'
         ? `<img src="${API_BASE_URL}/api/content/${result.id}/thumbnail"
                 alt="${title}"
+                loading="lazy"
                 style="width: 80px; height: 80px; object-fit: cover; border-radius: var(--radius-sm); margin-right: var(--spacing-md);"
                 onerror="this.outerHTML='<span class=\\'result-icon\\'>${icon}</span>'">`
         : `<span class="result-icon">${icon}</span>`;
