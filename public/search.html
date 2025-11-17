@@ -237,7 +237,10 @@
     // Build a single result item
     function buildResultItem(result) {
       const icon = getContentTypeIcon(result.contentType);
-      const title = escapeHtml(result.title || 'Untitled');
+      const displayTitle = result.contentType === 'pdf' && result.metadata?.pdfMetadata?.filename
+        ? result.metadata.pdfMetadata.filename
+        : (result.title || 'Untitled');
+      const title = escapeHtml(displayTitle);
       const excerpt = escapeHtml(result.excerpt || 'No preview available');
       const date = formatRelativeTime(result.createdAt);
       const score = result.score ? (result.score * 100).toFixed(0) : null;
@@ -260,6 +263,17 @@
                 onerror="this.outerHTML='<span class=\\'result-icon\\'>${icon}</span>'">`
         : `<span class="result-icon">${icon}</span>`;
 
+      // Add PDF metadata if available
+      let pdfInfoHtml = '';
+      if (result.contentType === 'pdf' && result.metadata?.pdfMetadata) {
+        const sizeKB = Math.round(result.metadata.pdfMetadata.size / 1024);
+        const sizeMB = sizeKB > 1024 ? (sizeKB / 1024).toFixed(1) + ' MB' : sizeKB + ' KB';
+        const pageInfo = result.metadata.pdfMetadata.pageCount ? `${result.metadata.pdfMetadata.pageCount} pages` : '';
+        pdfInfoHtml = `<span class="result-meta-info" style="font-size: 0.875rem; color: var(--text-muted);">
+          ${sizeMB}${pageInfo ? ' • ' + pageInfo : ''}
+        </span>`;
+      }
+
       return `
         <a href="/view.html?id=${result.id}" class="result-item">
           <div class="result-header">
@@ -273,6 +287,7 @@
           <div class="result-meta">
             <span class="result-date">${date}</span>
             <span class="result-type">${result.contentType}</span>
+            ${pdfInfoHtml}
             ${tagsHtml ? `<span class="result-tags">${tagsHtml}</span>` : ''}
           </div>
         </a>

@@ -9,6 +9,7 @@ import { getDatabaseService } from './services/database/index.js';
 import { getFileStorageService } from './services/fileStorage.js';
 import { getEmbeddingService } from './services/embeddingService.js';
 import { getThumbnailService } from './services/thumbnailService.js';
+import { PdfService } from './services/pdfService.js';
 import {
   logger,
   logStartup,
@@ -73,6 +74,13 @@ async function init() {
       quality: 80,
     });
 
+    // Initialize PDF service
+    logServiceInit('PDF Service');
+    const pdfService = PdfService.getInstance();
+    logServiceReady('PDF Service', {
+      status: 'available',
+    });
+
     // Initialize file storage service
     logServiceInit('File Storage');
     getFileStorageService(
@@ -81,11 +89,13 @@ async function init() {
         logger,
       },
       db,
-      thumbnailService
+      thumbnailService,
+      pdfService
     );
     logServiceReady('File Storage', {
       baseDirectory: config.storageBasePath,
       thumbnailsEnabled: true,
+      pdfMetadataEnabled: true,
     });
 
     // Initialize embedding service

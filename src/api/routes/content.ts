@@ -23,6 +23,8 @@ interface ContentMetadata {
   annotation: string | null;
   tags: string[];
   source: string | null;
+  image_metadata?: any;
+  pdf_metadata?: any;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +39,8 @@ interface ContentResponse {
   annotation: string | null;
   tags: string[];
   source: string | null;
+  image_metadata?: any;
+  pdf_metadata?: any;
   created_at: string;
   updated_at: string;
   content: string; // Actual file content
@@ -166,6 +170,8 @@ export async function registerContentRoutes(
           annotation: item.annotation,
           tags: item.tags,
           source: item.source,
+          image_metadata: item.image_metadata,
+          pdf_metadata: item.pdf_metadata,
           created_at: item.created_at,
           updated_at: item.updated_at,
         }));
@@ -240,6 +246,8 @@ export async function registerContentRoutes(
           annotation: metadata.annotation,
           tags: metadata.tags,
           source: metadata.source,
+          image_metadata: metadata.image_metadata,
+          pdf_metadata: metadata.pdf_metadata,
           created_at: metadata.created_at,
           updated_at: metadata.updated_at,
           content,
@@ -438,6 +446,99 @@ export async function registerContentRoutes(
         logger.error('Unexpected error serving thumbnail', { error, id });
         throw ApiErrors.storageError(
           error instanceof Error ? error.message : 'Failed to serve thumbnail'
+        );
+      }
+    }
+  );
+
+  /**
+   * GET /api/content/:id/download
+   * Download file content (especially for PDFs)
+   * Forces download with Content-Disposition: attachment
+   */
+  fastify.get<{ Params: { id: string } }>(
+    '/api/content/:id/download',
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply
+    ): Promise<void> => {
+      const { id } = request.params;
+
+      logger.debug('File download request', { id });
+
+      // Get metadata from database
+      const metadata = db.getContentById(id);
+
+      if (!metadata) {
+        logger.warn('Content not found', { id });
+        throw ApiErrors.notFound('Content not found');
+      }
+
+      try {
+        // Create read stream for the file
+        const streamResult = fileStorage.createReadStream(id);
+
+        if (!streamResult.success || !streamResult.stream) {
+          logger.error('Failed to create file stream', {
+            id,
+            error: streamResult.error,
+          });
+          throw ApiErrors.storageError('Failed to read file');
+        }
+
+        // Determine content type and filename from metadata
+        let contentType = 'application/octet-stream';
+        let filename = 'download';
+
+        const filePath = metadata.file_path;
+
+        // Determine content type from file extension
+        if (filePath.endsWith('.pdf')) {
+          contentType = 'application/pdf';
+          filename = metadata.pdf_metadata?.filename || metadata.title || `document-${id}.pdf`;
+        } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+          contentType = 'image/jpeg';
+          filename = metadata.title || `image-${id}.jpg`;
+        } else if (filePath.endsWith('.png')) {
+          contentType = 'image/png';
+          filename = metadata.title || `image-${id}.png`;
+        } else if (filePath.endsWith('.gif')) {
+          contentType = 'image/gif';
+          filename = metadata.title || `image-${id}.gif`;
+        } else if (filePath.endsWith('.webp')) {
+          contentType = 'image/webp';
+          filename = metadata.title || `image-${id}.webp`;
+        }
+
+        // Set headers to force download
+        reply.header('Content-Type', contentType);
+        reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+
+        // Add file size if available
+        if (metadata.pdf_metadata?.size) {
+          reply.header('Content-Length', metadata.pdf_metadata.size.toString());
+        } else if (metadata.image_metadata?.size) {
+          reply.header('Content-Length', metadata.image_metadata.size.toString());
+        }
+
+        logger.info('Streaming file for download', {
+          id,
+          contentType,
+          filename,
+          filePath: metadata.file_path,
+        });
+
+        // Stream the file
+        return reply.send(streamResult.stream);
+      } catch (error) {
+        // If it's already an API error, re-throw it
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
+        logger.error('Unexpected error streaming file for download', { error, id });
+        throw ApiErrors.storageError(
+          error instanceof Error ? error.message : 'Failed to stream file'
         );
       }
     }

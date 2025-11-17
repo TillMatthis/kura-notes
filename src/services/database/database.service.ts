@@ -102,6 +102,9 @@ export class DatabaseService {
       // Execute schema (better-sqlite3 supports multiple statements)
       this.db.exec(schema);
 
+      // Run conditional migrations based on current schema version
+      this.runConditionalMigrations();
+
       const version = this.getSchemaVersion();
       logger.info('Database migrations completed successfully', {
         version: version?.version,
@@ -110,6 +113,26 @@ export class DatabaseService {
     } catch (error) {
       logger.error('Database migration failed', { error });
       throw error;
+    }
+  }
+
+  /**
+   * Run conditional migrations for existing databases
+   */
+  private runConditionalMigrations(): void {
+    // Check if pdf_metadata column exists
+    const columns = this.db.pragma('table_info(content)') as Array<{ name: string }>;
+    const hasPdfMetadata = columns.some((col) => col.name === 'pdf_metadata');
+
+    if (!hasPdfMetadata) {
+      logger.info('Adding pdf_metadata column to content table');
+      try {
+        this.db.exec('ALTER TABLE content ADD COLUMN pdf_metadata TEXT');
+        logger.info('pdf_metadata column added successfully');
+      } catch (error) {
+        // Column might already exist, ignore error
+        logger.debug('pdf_metadata column might already exist', { error });
+      }
     }
   }
 
@@ -257,6 +280,11 @@ export class DatabaseService {
     if (input.image_metadata !== undefined) {
       updates.push('image_metadata = @image_metadata');
       params.image_metadata = JSON.stringify(input.image_metadata);
+    }
+
+    if (input.pdf_metadata !== undefined) {
+      updates.push('pdf_metadata = @pdf_metadata');
+      params.pdf_metadata = JSON.stringify(input.pdf_metadata);
     }
 
     // Always update the updated_at timestamp
@@ -441,13 +469,14 @@ export class DatabaseService {
 
   /**
    * Map database row to Content object
-   * Handles JSON parsing for tags
+   * Handles JSON parsing for tags, image_metadata, and pdf_metadata
    */
   private mapRowToContent(row: ContentRow): Content {
     return {
       ...row,
       tags: row.tags ? JSON.parse(row.tags) : [],
       image_metadata: row.image_metadata ? JSON.parse(row.image_metadata) : null,
+      pdf_metadata: row.pdf_metadata ? JSON.parse(row.pdf_metadata) : null,
     };
   }
 

@@ -30,6 +30,15 @@ export interface ImageMetadata {
 }
 
 /**
+ * PDF metadata stored as JSON in database
+ */
+export interface PdfMetadata {
+  filename: string; // Original filename
+  size: number; // File size in bytes
+  pageCount?: number; // Number of pages (if available)
+}
+
+/**
  * Content entity as stored in the database
  */
 export interface Content {
@@ -44,6 +53,7 @@ export interface Content {
   embedding_status: EmbeddingStatus;
   thumbnail_path: string | null; // Path to generated thumbnail (for images)
   image_metadata: ImageMetadata | null; // Image metadata (dimensions, format, size)
+  pdf_metadata: PdfMetadata | null; // PDF metadata (filename, size, page count)
   created_at: string; // ISO 8601 datetime string
   updated_at: string; // ISO 8601 datetime string
 }
@@ -64,6 +74,7 @@ export interface ContentRow {
   embedding_status: EmbeddingStatus;
   thumbnail_path: string | null;
   image_metadata: string | null; // JSON string
+  pdf_metadata: string | null; // JSON string
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +104,7 @@ export interface UpdateContentInput {
   embedding_status?: EmbeddingStatus;
   thumbnail_path?: string;
   image_metadata?: ImageMetadata;
+  pdf_metadata?: PdfMetadata;
 }
 
 /**

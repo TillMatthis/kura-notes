@@ -27,6 +27,8 @@ export interface SearchResult {
     updatedAt: string;
     source: string | null;
     annotation: string | null;
+    imageMetadata?: any;
+    pdfMetadata?: any;
   };
 }
 
@@ -534,6 +536,8 @@ export class SearchService {
         updatedAt: content.updated_at,
         source: content.source,
         annotation: content.annotation,
+        imageMetadata: content.image_metadata,
+        pdfMetadata: content.pdf_metadata,
       },
     };
   }
