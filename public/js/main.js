@@ -383,6 +383,54 @@ function setupGlobalKeyboardShortcuts() {
 }
 
 /**
+ * Offline Indicator
+ * Shows a notification when the app goes offline/online
+ */
+const OfflineIndicator = {
+  indicator: null,
+  isOnline: navigator.onLine,
+
+  init() {
+    // Create indicator element
+    this.indicator = document.createElement('div');
+    this.indicator.id = 'offline-indicator';
+    document.body.appendChild(this.indicator);
+
+    // Listen for online/offline events
+    window.addEventListener('online', () => this.handleOnline());
+    window.addEventListener('offline', () => this.handleOffline());
+
+    // Check initial state
+    if (!navigator.onLine) {
+      this.handleOffline();
+    }
+  },
+
+  handleOffline() {
+    this.isOnline = false;
+    this.indicator.innerHTML = '⚠️ You are offline';
+    this.indicator.classList.remove('online');
+    this.indicator.classList.add('show');
+  },
+
+  handleOnline() {
+    // Show "back online" message briefly
+    this.isOnline = true;
+    this.indicator.innerHTML = '✓ Back online';
+    this.indicator.classList.add('online');
+    this.indicator.classList.add('show');
+
+    // Hide after 3 seconds
+    setTimeout(() => {
+      this.indicator.classList.remove('show');
+      setTimeout(() => {
+        this.indicator.classList.remove('online');
+      }, 300);
+    }, 3000);
+  },
+};
+
+/**
  * Initialize page
  */
 function init() {
@@ -391,6 +439,9 @@ function init() {
 
   // Setup global keyboard shortcuts
   setupGlobalKeyboardShortcuts();
+
+  // Initialize offline indicator
+  OfflineIndicator.init();
 
   // Expose setApiKey function globally for console access
   window.setApiKey = setApiKey;

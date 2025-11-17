@@ -781,6 +781,38 @@ p {
     min-height: 44px;
     font-size: 16px; /* Prevents zoom on iOS */
   }
+
+  /* Larger touch targets for checkboxes */
+  input[type="checkbox"] {
+    min-width: 20px;
+    min-height: 20px;
+    cursor: pointer;
+  }
+
+  /* Larger touch targets for tags */
+  .tag,
+  .tag-clickable {
+    min-height: 32px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.875rem; /* 14px minimum for readability */
+  }
+
+  /* Ensure all interactive elements have proper touch targets */
+  button,
+  a,
+  select {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Exception for inline elements that shouldn't be forced to 44px */
+  .tag,
+  .tag-clickable,
+  .recent-search-item {
+    min-height: 36px; /* Slightly smaller but still tappable */
+  }
 }
 
 /* Search Results Styling */
@@ -1098,4 +1130,94 @@ kbd {
   border-radius: var(--radius-sm);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   font-weight: 500;
+}
+
+/* ===========================
+   Offline Indicator
+   =========================== */
+
+#offline-indicator {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--error-color);
+  color: white;
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  animation: slideUp 0.3s ease-out;
+}
+
+#offline-indicator.show {
+  display: flex;
+}
+
+#offline-indicator.online {
+  background-color: var(--success-color);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateX(-50%) translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Mobile: Offline indicator takes full width */
+@media (max-width: 640px) {
+  #offline-indicator {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    transform: none;
+    width: auto;
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(100px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}
+
+/* ===========================
+   Mobile Performance: Lazy Loading
+   =========================== */
+
+/* Placeholder for lazy-loaded images */
+img[loading="lazy"] {
+  background-color: var(--bg-tertiary);
+}
+
+/* Improve tap targets and prevent double-tap zoom */
+* {
+  -webkit-tap-highlight-color: rgba(37, 99, 235, 0.1);
+  -webkit-touch-callout: none;
+}
+
+/* Allow text selection in content areas */
+.content-text,
+.result-excerpt,
+.item-annotation,
+textarea,
+input {
+  -webkit-touch-callout: default;
+  user-select: text;
+  -webkit-user-select: text;
 }
