@@ -10,6 +10,7 @@ import { getFileStorageService } from './services/fileStorage.js';
 import { getEmbeddingService } from './services/embeddingService.js';
 import { getThumbnailService } from './services/thumbnailService.js';
 import { PdfService } from './services/pdfService.js';
+import { getStatsService } from './services/statsService.js';
 import {
   logger,
   logStartup,
@@ -113,6 +114,14 @@ async function init() {
         impact: 'Vector embeddings will not be generated',
       });
     }
+
+    // Initialize stats service
+    logServiceInit('Stats Service');
+    getStatsService(config.storageBasePath);
+    logServiceReady('Stats Service', {
+      cacheTTL: '5 minutes',
+      status: 'available',
+    });
 
     // Initialize Fastify server
     logServiceInit('API Server');

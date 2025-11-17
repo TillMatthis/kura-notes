@@ -25,6 +25,7 @@ import { registerCaptureRoutes } from './routes/capture.js';
 import { registerContentRoutes } from './routes/content.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerTagRoutes } from './routes/tags.js';
+import { registerStatsRoutes } from './routes/stats.js';
 import { getFileStorageService } from '../services/fileStorage.js';
 import { getDatabaseService } from '../services/database/database.service.js';
 import { getEmbeddingService } from '../services/embeddingService.js';
@@ -192,6 +193,9 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
 
   // Tag routes (Task 3.4)
   await registerTagRoutes(fastify, tagService);
+
+  // Stats routes (Task 3.7)
+  await registerStatsRoutes(fastify);
 
   logger.info('Routes registered successfully');
 }

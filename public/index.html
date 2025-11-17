@@ -38,24 +38,47 @@
         </p>
       </div>
 
-      <!-- Quick Stats Placeholder -->
+      <!-- Quick Stats -->
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">Total Items</div>
-          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-value" id="stat-total">
+            <div class="loading-spinner-sm"></div>
+          </div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Text Notes</div>
-          <div class="stat-value" id="stat-text">0</div>
+          <div class="stat-value" id="stat-text">
+            <div class="loading-spinner-sm"></div>
+          </div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Images</div>
-          <div class="stat-value" id="stat-images">0</div>
+          <div class="stat-value" id="stat-images">
+            <div class="loading-spinner-sm"></div>
+          </div>
         </div>
         <div class="stat-card">
           <div class="stat-label">PDFs</div>
-          <div class="stat-value" id="stat-pdfs">0</div>
+          <div class="stat-value" id="stat-pdfs">
+            <div class="loading-spinner-sm"></div>
+          </div>
         </div>
+        <div class="stat-card">
+          <div class="stat-label">Storage Used</div>
+          <div class="stat-value" id="stat-storage">
+            <div class="loading-spinner-sm"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Tags Section -->
+      <div class="card mb-4" id="top-tags-section" style="display: none;">
+        <div class="card-header">
+          <h3 class="card-title">Most Used Tags</h3>
+          <p class="card-description">Your top 10 most frequently used tags</p>
+        </div>
+        <div id="top-tags-list" class="tag-cloud"></div>
       </div>
 
       <!-- Quick Actions -->
@@ -153,14 +176,55 @@
     // Load stats on page load
     async function loadStats() {
       try {
-        const response = await fetch('/api/health');
-        const data = await response.json();
+        const response = await apiRequest('/api/stats');
 
-        // For now, just show 0s
-        // TODO: Task 3.7 - Load actual stats from /api/stats endpoint
-        console.log('Health check:', data);
+        if (!response.success || !response.data) {
+          throw new Error('Failed to load stats');
+        }
+
+        const stats = response.data;
+
+        // Update main stat cards
+        document.getElementById('stat-total').textContent = stats.totalItems || 0;
+        document.getElementById('stat-text').textContent = stats.byContentType.text || 0;
+        document.getElementById('stat-images').textContent = stats.byContentType.image || 0;
+        document.getElementById('stat-pdfs').textContent = stats.byContentType.pdf || 0;
+        document.getElementById('stat-storage').textContent = stats.storageUsed?.formatted || '0 B';
+
+        // Display top tags
+        if (stats.mostUsedTags && stats.mostUsedTags.length > 0) {
+          const topTagsSection = document.getElementById('top-tags-section');
+          const topTagsList = document.getElementById('top-tags-list');
+
+          const tagsHtml = stats.mostUsedTags.map((item, index) => {
+            // Calculate size based on usage (larger for more used tags)
+            const maxSize = 1.5;
+            const minSize = 0.9;
+            const size = minSize + ((maxSize - minSize) * (1 - index / stats.mostUsedTags.length));
+
+            return `
+              <a href="/search.html?tag=${encodeURIComponent(item.tag)}"
+                 class="tag tag-clickable"
+                 style="font-size: ${size}rem;">
+                ${escapeHtml(item.tag)} <span class="tag-count">(${item.count})</span>
+              </a>
+            `;
+          }).join('');
+
+          topTagsList.innerHTML = tagsHtml;
+          topTagsSection.style.display = 'block';
+        }
+
+        console.log('Stats loaded successfully:', stats);
       } catch (error) {
         console.error('Failed to load stats:', error);
+
+        // Show 0s on error
+        document.getElementById('stat-total').textContent = '0';
+        document.getElementById('stat-text').textContent = '0';
+        document.getElementById('stat-images').textContent = '0';
+        document.getElementById('stat-pdfs').textContent = '0';
+        document.getElementById('stat-storage').textContent = '0 B';
       }
     }
 
