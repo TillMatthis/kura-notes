@@ -20,6 +20,7 @@ import {
 import { validateFile, inferMimeType } from '../utils/fileValidation.js';
 import { DatabaseService } from './database/database.service.js';
 import type { CreateContentInput } from '../models/content.js';
+import { ThumbnailService } from './thumbnailService.js';
 
 /**
  * File storage service configuration
@@ -38,13 +39,19 @@ export class FileStorageService {
   private baseDirectory: string;
   private logger: winston.Logger;
   private db: DatabaseService;
+  private thumbnailService: ThumbnailService | null = null;
 
   /**
    * Private constructor - use getInstance() instead
    */
-  private constructor(config: FileStorageConfig, db: DatabaseService) {
+  private constructor(
+    config: FileStorageConfig,
+    db: DatabaseService,
+    thumbnailService?: ThumbnailService
+  ) {
     this.baseDirectory = config.baseDirectory;
     this.db = db;
+    this.thumbnailService = thumbnailService || null;
 
     // Setup logger
     this.logger =
@@ -62,12 +69,16 @@ export class FileStorageService {
   /**
    * Get or create file storage instance (singleton)
    */
-  public static getInstance(config?: FileStorageConfig, db?: DatabaseService): FileStorageService {
+  public static getInstance(
+    config?: FileStorageConfig,
+    db?: DatabaseService,
+    thumbnailService?: ThumbnailService
+  ): FileStorageService {
     if (!FileStorageService.instance) {
       if (!config || !db) {
         throw new Error('FileStorageConfig and DatabaseService required for first initialization');
       }
-      FileStorageService.instance = new FileStorageService(config, db);
+      FileStorageService.instance = new FileStorageService(config, db, thumbnailService);
     }
     return FileStorageService.instance;
   }
@@ -209,6 +220,33 @@ export class FileStorageService {
         contentType,
       });
 
+      // Generate thumbnail and image metadata for images
+      let thumbnailPath: string | undefined;
+      let imageMetadata: any | undefined;
+
+      if (contentType === 'image' && this.thumbnailService && mimeType) {
+        this.logger.debug('Generating thumbnail for image', { id, mimeType });
+
+        const thumbnailResult = await this.thumbnailService.generateThumbnail(buffer, filename);
+
+        if (thumbnailResult.success) {
+          thumbnailPath = thumbnailResult.thumbnailPath;
+          imageMetadata = thumbnailResult.metadata;
+
+          this.logger.info('Thumbnail generated successfully', {
+            id,
+            thumbnailPath,
+            metadata: imageMetadata,
+          });
+        } else {
+          this.logger.warn('Failed to generate thumbnail', {
+            id,
+            error: thumbnailResult.error,
+          });
+          // Continue without thumbnail - don't fail the entire upload
+        }
+      }
+
       // Save metadata to database using existing Content interface
       const dbInput: CreateContentInput = {
         id,
@@ -222,15 +260,29 @@ export class FileStorageService {
       };
 
       try {
+        // Create content first
         this.db.createContent(dbInput);
+
+        // Then update with thumbnail and metadata if available
+        if (thumbnailPath || imageMetadata) {
+          this.db.updateContent(id, {
+            thumbnail_path: thumbnailPath,
+            image_metadata: imageMetadata,
+          });
+        }
       } catch (dbError) {
-        // Clean up file if database insert fails
+        // Clean up file and thumbnail if database insert fails
         await fsPromises.unlink(fullPath).catch((err) => {
           this.logger.error('Failed to clean up file after DB error', {
             error: err,
             path: fullPath,
           });
         });
+
+        if (thumbnailPath && this.thumbnailService) {
+          await this.thumbnailService.deleteThumbnail(thumbnailPath);
+        }
+
         throw dbError;
       }
 
@@ -402,6 +454,15 @@ export class FileStorageService {
         });
       }
 
+      // Delete thumbnail if it exists
+      if (contentRecord.thumbnail_path && this.thumbnailService) {
+        await this.thumbnailService.deleteThumbnail(contentRecord.thumbnail_path);
+        this.logger.info('Thumbnail deleted from disk', {
+          id,
+          thumbnailPath: contentRecord.thumbnail_path,
+        });
+      }
+
       // Delete metadata from database
       const deleted = this.db.deleteContent(id);
       if (!deleted) {
@@ -479,7 +540,8 @@ export class FileStorageService {
  */
 export const getFileStorageService = (
   config?: FileStorageConfig,
-  db?: DatabaseService
+  db?: DatabaseService,
+  thumbnailService?: ThumbnailService
 ): FileStorageService => {
-  return FileStorageService.getInstance(config, db);
+  return FileStorageService.getInstance(config, db, thumbnailService);
 };

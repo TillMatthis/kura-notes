@@ -20,6 +20,16 @@ export type ContentSource = 'ios-shortcut' | 'web' | 'api' | 'manual';
 export type EmbeddingStatus = 'pending' | 'completed' | 'failed';
 
 /**
+ * Image metadata stored as JSON in database
+ */
+export interface ImageMetadata {
+  width: number;
+  height: number;
+  format: string; // 'jpeg', 'png', 'webp', etc.
+  size: number; // File size in bytes
+}
+
+/**
  * Content entity as stored in the database
  */
 export interface Content {
@@ -32,13 +42,15 @@ export interface Content {
   annotation: string | null;
   extracted_text: string | null;
   embedding_status: EmbeddingStatus;
+  thumbnail_path: string | null; // Path to generated thumbnail (for images)
+  image_metadata: ImageMetadata | null; // Image metadata (dimensions, format, size)
   created_at: string; // ISO 8601 datetime string
   updated_at: string; // ISO 8601 datetime string
 }
 
 /**
  * Raw content row as returned from SQLite
- * (tags are stored as JSON string in the database)
+ * (tags and image_metadata are stored as JSON strings in the database)
  */
 export interface ContentRow {
   id: string;
@@ -50,6 +62,8 @@ export interface ContentRow {
   annotation: string | null;
   extracted_text: string | null;
   embedding_status: EmbeddingStatus;
+  thumbnail_path: string | null;
+  image_metadata: string | null; // JSON string
   created_at: string;
   updated_at: string;
 }
@@ -77,6 +91,8 @@ export interface UpdateContentInput {
   annotation?: string;
   extracted_text?: string;
   embedding_status?: EmbeddingStatus;
+  thumbnail_path?: string;
+  image_metadata?: ImageMetadata;
 }
 
 /**

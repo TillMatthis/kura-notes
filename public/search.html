@@ -252,12 +252,22 @@
         ? `<span class="relevance-score" title="Relevance score">${score}%</span>`
         : '';
 
+      // Show thumbnail for images
+      const thumbnailHtml = result.contentType === 'image'
+        ? `<img src="${API_BASE_URL}/api/content/${result.id}/thumbnail"
+                alt="${title}"
+                style="width: 80px; height: 80px; object-fit: cover; border-radius: var(--radius-sm); margin-right: var(--spacing-md);"
+                onerror="this.outerHTML='<span class=\\'result-icon\\'>${icon}</span>'">`
+        : `<span class="result-icon">${icon}</span>`;
+
       return `
         <a href="/view.html?id=${result.id}" class="result-item">
           <div class="result-header">
-            <span class="result-icon">${icon}</span>
-            <h3 class="result-title">${title}</h3>
-            ${scoreHtml}
+            ${thumbnailHtml}
+            <div style="flex: 1;">
+              <h3 class="result-title">${title}</h3>
+              ${scoreHtml}
+            </div>
           </div>
           <p class="result-excerpt">${excerpt}</p>
           <div class="result-meta">
