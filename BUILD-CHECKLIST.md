@@ -1262,38 +1262,61 @@
 ---
 
 ### Task 3.6: Bulk Operations
-**Branch:** `task/026-bulk-operations`  
-**Estimated Time:** 2-3 hours  
+**Branch:** `claude/kura-notes-task-3.6-01LemnsAqkdbSNkLWEzPqdjT`
+**Estimated Time:** 2-3 hours
 **Depends On:** Task 1.10
 
-- [ ] Add checkbox to item lists
-  - Recent items
-  - Search results
-- [ ] Implement selection
-  - Select all
-  - Select individual
-  - Clear selection
-- [ ] Add bulk actions
-  - Delete selected
-  - Add tags to selected
-  - Export selected (optional)
-- [ ] Create bulk endpoints
-  - POST /api/content/bulk/delete
-  - POST /api/content/bulk/tag
-- [ ] Add confirmation dialogs
-  - "Delete 5 items?"
-  - Show progress
-- [ ] Write tests
+- [x] Add checkbox to item lists
+  - Recent items ✅
+  - Search results ✅
+- [x] Implement selection
+  - Select all ✅
+  - Select individual ✅
+  - Clear selection ✅
+- [x] Add bulk actions
+  - Delete selected ✅
+  - Add tags to selected ✅
+  - Export selected (optional - deferred)
+- [x] Create bulk endpoints
+  - POST /api/content/bulk/delete ✅
+  - POST /api/content/bulk/tag ✅
+- [x] Add confirmation dialogs
+  - "Delete N items?" ✅
+  - Show progress ✅
+- [x] Write tests ✅ (10/10 passing)
 
 **Acceptance Criteria:**
-- Can select multiple items
-- Bulk delete works
-- Bulk tag works
-- Confirmation dialogs show
-- Progress indicated
-- Tests pass
+- ✅ Can select multiple items (checkboxes added to both pages)
+- ✅ Bulk delete works (with confirmation and progress indicator)
+- ✅ Bulk tag works (add mode with merge logic)
+- ✅ Confirmation dialogs show (native confirm() used)
+- ✅ Progress indicated (buttons show loading state)
+- ✅ Tests pass (10/10 integration tests passing)
 
-**Completion Date:** _________
+**Completion Date:** 2025-11-17
+
+**Notes:**
+- Created comprehensive bulk operations API endpoints:
+  - POST /api/content/bulk/delete - Deletes multiple items, handles files, thumbnails, vector store, and database
+  - POST /api/content/bulk/tag - Adds or replaces tags on multiple items with validation
+- Both endpoints support up to 100 items per operation
+- Partial success handling (HTTP 207 Multi-Status) when some operations succeed and others fail
+- Added `updateContentTags()` method to DatabaseService for efficient tag updates
+- Frontend implementation:
+  - **index.html (Recent Items)**: Checkboxes, select all, bulk action toolbar with delete and add tags buttons
+  - **search.html (Search Results)**: Same bulk operations functionality integrated into search results
+- Bulk actions toolbar shows/hides based on item availability
+- Select All checkbox with indeterminate state for partial selection
+- Loading states: buttons change to "⏳ Deleting..." and "⏳ Adding tags..." during operations
+- Confirmation dialogs: native browser confirm() with item count
+- Success/failure messages: using existing showMessage() utility with success/warning/error types
+- Tag validation: enforces format rules (alphanumeric, dash, underscore), max 20 tags per item, max 50 chars per tag
+- CSS styling added for bulk-actions-toolbar, responsive design for mobile
+- Comprehensive test suite (tests/api/bulkOperations.test.ts):
+  - 10 tests covering bulk delete and bulk tag operations
+  - Tests authentication, validation, success cases, error handling
+  - All tests passing
+- Export selected feature deferred as optional (not required for MVP)
 
 ---
 

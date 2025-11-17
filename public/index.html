@@ -85,6 +85,24 @@
           <p class="card-description">Your recently added content</p>
         </div>
 
+        <!-- Bulk Actions Toolbar -->
+        <div id="bulk-actions-toolbar" class="bulk-actions-toolbar" style="display: none;">
+          <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+            <label style="display: flex; align-items: center; gap: var(--spacing-xs); cursor: pointer;">
+              <input type="checkbox" id="select-all-checkbox" style="cursor: pointer;">
+              <span id="selection-count" style="font-weight: 500;">0 selected</span>
+            </label>
+          </div>
+          <div style="display: flex; gap: var(--spacing-sm);">
+            <button type="button" class="btn btn-danger btn-sm" id="bulk-delete-btn" onclick="bulkDelete()">
+              🗑️ Delete Selected
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="bulk-tag-btn" onclick="bulkAddTags()">
+              🏷️ Add Tags
+            </button>
+          </div>
+        </div>
+
         <div id="recent-items">
           <p class="text-muted text-center">
             No items yet. Create your first note or upload a file to get started!
@@ -168,7 +186,7 @@
           return;
         }
 
-        // Build HTML for recent items
+        // Build HTML for recent items with checkboxes
         const itemsHtml = data.items.map(item => {
           const icon = getContentTypeIcon(item.content_type);
           const relativeTime = formatRelativeTime(item.created_at);
@@ -199,22 +217,30 @@
           }
 
           return `
-            <div class="item-card" onclick="viewContent('${item.id}')">
-              ${thumbnailHtml}
-              <div class="item-content">
-                <div class="item-header">
-                  <h3 class="item-title">${escapeHtml(title)}</h3>
-                  <span class="item-date">${relativeTime}</span>
+            <div class="item-card" data-item-id="${item.id}">
+              <input type="checkbox" class="item-checkbox" data-content-id="${item.id}" onclick="event.stopPropagation(); updateSelection();" style="margin-right: var(--spacing-md); cursor: pointer;">
+              <div onclick="viewContent('${item.id}')" style="display: flex; flex: 1; cursor: pointer;">
+                ${thumbnailHtml}
+                <div class="item-content">
+                  <div class="item-header">
+                    <h3 class="item-title">${escapeHtml(title)}</h3>
+                    <span class="item-date">${relativeTime}</span>
+                  </div>
+                  ${item.annotation && item.title !== item.annotation ? `<p class="item-annotation">${escapeHtml(item.annotation)}</p>` : ''}
+                  ${pdfInfoHtml}
+                  ${tagsHtml ? `<div class="item-tags">${tagsHtml}</div>` : ''}
                 </div>
-                ${item.annotation && item.title !== item.annotation ? `<p class="item-annotation">${escapeHtml(item.annotation)}</p>` : ''}
-                ${pdfInfoHtml}
-                ${tagsHtml ? `<div class="item-tags">${tagsHtml}</div>` : ''}
               </div>
             </div>
           `;
         }).join('');
 
         container.innerHTML = `<div class="items-list">${itemsHtml}</div>`;
+
+        // Show bulk actions toolbar if there are items
+        if (data.items.length > 0) {
+          document.getElementById('bulk-actions-toolbar').style.display = 'flex';
+        }
       } catch (error) {
         console.error('Failed to load recent items:', error);
         container.innerHTML = `
@@ -237,6 +263,160 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    // Update selection state
+    function updateSelection() {
+      const checkboxes = document.querySelectorAll('.item-checkbox');
+      const selectedCheckboxes = document.querySelectorAll('.item-checkbox:checked');
+      const selectAllCheckbox = document.getElementById('select-all-checkbox');
+      const selectionCount = document.getElementById('selection-count');
+
+      // Update selection count
+      const count = selectedCheckboxes.length;
+      selectionCount.textContent = `${count} selected`;
+
+      // Update select all checkbox state
+      if (selectAllCheckbox) {
+        selectAllCheckbox.checked = count > 0 && count === checkboxes.length;
+        selectAllCheckbox.indeterminate = count > 0 && count < checkboxes.length;
+      }
+    }
+
+    // Handle select all checkbox
+    document.addEventListener('DOMContentLoaded', () => {
+      const selectAllCheckbox = document.getElementById('select-all-checkbox');
+      if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', (e) => {
+          const checkboxes = document.querySelectorAll('.item-checkbox');
+          checkboxes.forEach(checkbox => {
+            checkbox.checked = e.target.checked;
+          });
+          updateSelection();
+        });
+      }
+    });
+
+    // Get selected content IDs
+    function getSelectedIds() {
+      const selectedCheckboxes = document.querySelectorAll('.item-checkbox:checked');
+      return Array.from(selectedCheckboxes).map(cb => cb.getAttribute('data-content-id'));
+    }
+
+    // Bulk delete selected items
+    async function bulkDelete() {
+      const selectedIds = getSelectedIds();
+
+      if (selectedIds.length === 0) {
+        alert('Please select items to delete');
+        return;
+      }
+
+      const confirmed = confirm(`Are you sure you want to delete ${selectedIds.length} item(s)? This action cannot be undone.`);
+      if (!confirmed) return;
+
+      try {
+        // Show loading state
+        const deleteBtn = document.getElementById('bulk-delete-btn');
+        const originalText = deleteBtn.textContent;
+        deleteBtn.disabled = true;
+        deleteBtn.textContent = '⏳ Deleting...';
+
+        // Call bulk delete API
+        const response = await apiRequest('/api/content/bulk/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ids: selectedIds }),
+        });
+
+        // Show result
+        if (response.success) {
+          showMessage(`Successfully deleted ${response.results.successful.length} item(s)`, 'success');
+        } else if (response.results.successful.length > 0) {
+          showMessage(
+            `Partially successful: ${response.results.successful.length} deleted, ${response.results.failed.length} failed`,
+            'warning'
+          );
+        } else {
+          showMessage('Failed to delete items', 'error');
+        }
+
+        // Reload items
+        await loadRecentItems();
+      } catch (error) {
+        console.error('Bulk delete failed:', error);
+        alert(`Failed to delete items: ${error.message}`);
+
+        // Restore button
+        const deleteBtn = document.getElementById('bulk-delete-btn');
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = '🗑️ Delete Selected';
+      }
+    }
+
+    // Bulk add tags to selected items
+    async function bulkAddTags() {
+      const selectedIds = getSelectedIds();
+
+      if (selectedIds.length === 0) {
+        alert('Please select items to add tags');
+        return;
+      }
+
+      const tagsInput = prompt(`Add tags to ${selectedIds.length} item(s)\n(comma-separated, e.g., work, important):`);
+      if (!tagsInput) return;
+
+      const tags = tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+      if (tags.length === 0) {
+        alert('Please enter at least one tag');
+        return;
+      }
+
+      try {
+        // Show loading state
+        const tagBtn = document.getElementById('bulk-tag-btn');
+        const originalText = tagBtn.textContent;
+        tagBtn.disabled = true;
+        tagBtn.textContent = '⏳ Adding tags...';
+
+        // Call bulk tag API
+        const response = await apiRequest('/api/content/bulk/tag', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ids: selectedIds,
+            tags: tags,
+            mode: 'add'
+          }),
+        });
+
+        // Show result
+        if (response.success) {
+          showMessage(`Successfully added tags to ${response.results.successful.length} item(s)`, 'success');
+        } else if (response.results.successful.length > 0) {
+          showMessage(
+            `Partially successful: ${response.results.successful.length} updated, ${response.results.failed.length} failed`,
+            'warning'
+          );
+        } else {
+          showMessage('Failed to add tags', 'error');
+        }
+
+        // Reload items
+        await loadRecentItems();
+      } catch (error) {
+        console.error('Bulk tag operation failed:', error);
+        alert(`Failed to add tags: ${error.message}`);
+
+        // Restore button
+        const tagBtn = document.getElementById('bulk-tag-btn');
+        tagBtn.disabled = false;
+        tagBtn.textContent = '🏷️ Add Tags';
+      }
     }
 
     // Initialize

@@ -929,3 +929,42 @@ p {
     width: 100%;
   }
 }
+
+/* Bulk Actions Toolbar */
+.bulk-actions-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background-color: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  gap: var(--spacing-md);
+}
+
+.item-card {
+  display: flex;
+  align-items: center;
+}
+
+.item-checkbox {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+/* Responsive bulk actions toolbar */
+@media (max-width: 640px) {
+  .bulk-actions-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+  }
+
+  .bulk-actions-toolbar > div {
+    width: 100%;
+  }
+
+  .bulk-actions-toolbar button {
+    width: 100%;
+  }
+}
