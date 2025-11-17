@@ -82,7 +82,7 @@ function hideLoading() {
 }
 
 /**
- * Show message to user
+ * Show message to user (legacy - inserts at top of page)
  */
 function showMessage(message, type = 'info') {
   const messageEl = document.createElement('div');
@@ -99,6 +99,191 @@ function showMessage(message, type = 'info') {
     }, 5000);
   }
 }
+
+/**
+ * Toast Notification System
+ * Shows floating notifications in the top-right corner
+ */
+const Toast = {
+  container: null,
+
+  /**
+   * Initialize toast container
+   */
+  init() {
+    if (this.container) return;
+
+    this.container = document.createElement('div');
+    this.container.id = 'toast-container';
+    this.container.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    `;
+    document.body.appendChild(this.container);
+  },
+
+  /**
+   * Show a toast notification
+   * @param {string} message - The message to display
+   * @param {string} type - Type of toast: 'success', 'error', 'warning', 'info'
+   * @param {number} duration - Duration in ms (0 for no auto-dismiss)
+   */
+  show(message, type = 'info', duration = 4000) {
+    this.init();
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.style.cssText = `
+      background: ${this.getBackgroundColor(type)};
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      min-width: 300px;
+      max-width: 400px;
+      pointer-events: auto;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      line-height: 1.4;
+      animation: slideInRight 0.3s ease-out;
+      transition: transform 0.2s, opacity 0.2s;
+    `;
+
+    // Add icon
+    const icon = document.createElement('span');
+    icon.textContent = this.getIcon(type);
+    icon.style.fontSize = '20px';
+    icon.style.flexShrink = '0';
+    toast.appendChild(icon);
+
+    // Add message
+    const messageEl = document.createElement('span');
+    messageEl.textContent = message;
+    messageEl.style.flex = '1';
+    toast.appendChild(messageEl);
+
+    // Add close button
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.style.cssText = `
+      background: none;
+      border: none;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0;
+      margin: 0;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+      line-height: 1;
+    `;
+    closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
+    closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.8';
+    closeBtn.onclick = (e) => {
+      e.stopPropagation();
+      this.dismiss(toast);
+    };
+    toast.appendChild(closeBtn);
+
+    // Click anywhere to dismiss
+    toast.onclick = () => this.dismiss(toast);
+
+    // Hover pause
+    toast.onmouseenter = () => {
+      if (toast.timeout) {
+        clearTimeout(toast.timeout);
+        toast.timeout = null;
+      }
+    };
+
+    toast.onmouseleave = () => {
+      if (duration > 0) {
+        toast.timeout = setTimeout(() => this.dismiss(toast), 2000);
+      }
+    };
+
+    // Add to container
+    this.container.appendChild(toast);
+
+    // Auto-dismiss
+    if (duration > 0) {
+      toast.timeout = setTimeout(() => this.dismiss(toast), duration);
+    }
+
+    return toast;
+  },
+
+  /**
+   * Dismiss a toast
+   */
+  dismiss(toast) {
+    toast.style.animation = 'slideOutRight 0.3s ease-out';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(400px)';
+
+    setTimeout(() => {
+      if (toast.timeout) clearTimeout(toast.timeout);
+      if (toast.parentElement) toast.remove();
+    }, 300);
+  },
+
+  /**
+   * Get background color for toast type
+   */
+  getBackgroundColor(type) {
+    const colors = {
+      success: '#28a745',
+      error: '#dc3545',
+      warning: '#ffc107',
+      info: '#17a2b8',
+    };
+    return colors[type] || colors.info;
+  },
+
+  /**
+   * Get icon for toast type
+   */
+  getIcon(type) {
+    const icons = {
+      success: '✓',
+      error: '✕',
+      warning: '⚠',
+      info: 'ℹ',
+    };
+    return icons[type] || icons.info;
+  },
+
+  /**
+   * Convenience methods
+   */
+  success(message, duration = 4000) {
+    return this.show(message, 'success', duration);
+  },
+
+  error(message, duration = 5000) {
+    return this.show(message, 'error', duration);
+  },
+
+  warning(message, duration = 5000) {
+    return this.show(message, 'warning', duration);
+  },
+
+  info(message, duration = 4000) {
+    return this.show(message, 'info', duration);
+  },
+};
+
+// Make Toast globally available
+window.Toast = Toast;
 
 /**
  * Format date to relative time
@@ -146,11 +331,66 @@ function setActiveNavLink() {
 }
 
 /**
+ * Global Keyboard Shortcuts
+ */
+function setupGlobalKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Ignore if user is typing in an input/textarea
+    const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+    const isContentEditable = document.activeElement.isContentEditable;
+
+    // Don't trigger shortcuts when typing (except Escape)
+    if ((isTyping || isContentEditable) && e.key !== 'Escape') {
+      return;
+    }
+
+    // "/" - Focus search (redirect to search page if not on search page)
+    if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      const searchInput = document.getElementById('search-query');
+      if (searchInput) {
+        // Already on search page, focus the input
+        searchInput.focus();
+      } else {
+        // Redirect to search page
+        window.location.href = '/search.html';
+      }
+    }
+
+    // "n" - Create new note
+    if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      window.location.href = '/create.html';
+    }
+
+    // "Escape" - Close any open modals
+    if (e.key === 'Escape') {
+      // Look for any visible modals
+      const modals = document.querySelectorAll('.modal');
+      modals.forEach(modal => {
+        if (modal.style.display === 'block' || !modal.classList.contains('hidden')) {
+          modal.style.display = 'none';
+          modal.classList.add('hidden');
+        }
+      });
+
+      // Look for any custom modal close functions
+      if (typeof closeRenameModal === 'function') closeRenameModal();
+      if (typeof closeDeleteModal === 'function') closeDeleteModal();
+      if (typeof closeImageModal === 'function') closeImageModal();
+    }
+  });
+}
+
+/**
  * Initialize page
  */
 function init() {
   // Set active navigation link
   setActiveNavLink();
+
+  // Setup global keyboard shortcuts
+  setupGlobalKeyboardShortcuts();
 
   // Expose setApiKey function globally for console access
   window.setApiKey = setApiKey;
