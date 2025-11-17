@@ -15,6 +15,11 @@ export type ContentType = 'text' | 'image' | 'pdf' | 'audio';
 export type ContentSource = 'ios-shortcut' | 'web' | 'api' | 'manual';
 
 /**
+ * Embedding generation status
+ */
+export type EmbeddingStatus = 'pending' | 'completed' | 'failed';
+
+/**
  * Content entity as stored in the database
  */
 export interface Content {
@@ -26,6 +31,7 @@ export interface Content {
   tags: string[]; // Stored as JSON in DB
   annotation: string | null;
   extracted_text: string | null;
+  embedding_status: EmbeddingStatus;
   created_at: string; // ISO 8601 datetime string
   updated_at: string; // ISO 8601 datetime string
 }
@@ -43,6 +49,7 @@ export interface ContentRow {
   tags: string | null; // JSON string
   annotation: string | null;
   extracted_text: string | null;
+  embedding_status: EmbeddingStatus;
   created_at: string;
   updated_at: string;
 }
@@ -69,6 +76,7 @@ export interface UpdateContentInput {
   tags?: string[];
   annotation?: string;
   extracted_text?: string;
+  embedding_status?: EmbeddingStatus;
 }
 
 /**

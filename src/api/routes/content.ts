@@ -8,6 +8,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { logger } from '../../utils/logger.js';
 import { DatabaseService } from '../../services/database/database.service.js';
 import { FileStorageService } from '../../services/fileStorage.js';
+import { VectorStoreService } from '../../services/vectorStore.js';
 import { ApiErrors } from '../types/errors.js';
 import type { ContentType } from '../../models/content.js';
 
@@ -139,7 +140,8 @@ const contentByIdSchema = {
 export async function registerContentRoutes(
   fastify: FastifyInstance,
   db: DatabaseService,
-  fileStorage: FileStorageService
+  fileStorage: FileStorageService,
+  vectorStore: VectorStoreService
 ): Promise<void> {
   /**
    * GET /api/content/recent
@@ -370,6 +372,19 @@ export async function registerContentRoutes(
             error: result.error,
           });
           throw ApiErrors.storageError(result.error || 'Failed to delete content');
+        }
+
+        // Also delete from ChromaDB if embedding exists
+        // Don't fail the delete if ChromaDB deletion fails
+        try {
+          await vectorStore.deleteDocument(id);
+          logger.debug('Embedding deleted from ChromaDB', { id });
+        } catch (vectorError) {
+          logger.warn('Failed to delete embedding from ChromaDB (non-critical)', {
+            id,
+            error: vectorError instanceof Error ? vectorError.message : 'Unknown error',
+          });
+          // Continue - we don't want to fail the whole delete operation
         }
 
         logger.info('Content deleted successfully', {

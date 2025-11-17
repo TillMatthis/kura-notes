@@ -25,6 +25,9 @@ import { registerCaptureRoutes } from './routes/capture.js';
 import { registerContentRoutes } from './routes/content.js';
 import { getFileStorageService } from '../services/fileStorage.js';
 import { getDatabaseService } from '../services/database/database.service.js';
+import { getEmbeddingService } from '../services/embeddingService.js';
+import { getVectorStoreService } from '../services/vectorStore.js';
+import { EmbeddingPipelineService } from '../services/embeddingPipeline.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -158,16 +161,27 @@ function registerHooks(fastify: FastifyInstance): void {
 async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   logger.debug('Registering routes...');
 
+  // Get service instances
+  const db = getDatabaseService();
+  const fileStorage = getFileStorageService();
+  const embeddingService = getEmbeddingService();
+  const vectorStore = getVectorStoreService();
+
+  // Create embedding pipeline service
+  const embeddingPipeline = new EmbeddingPipelineService(
+    embeddingService,
+    vectorStore,
+    db
+  );
+
   // Health check routes
   await registerHealthRoutes(fastify);
 
-  // Content capture routes (Task 1.7)
-  const fileStorage = getFileStorageService();
-  await registerCaptureRoutes(fastify, fileStorage);
+  // Content capture routes (Task 1.7 + Task 2.3)
+  await registerCaptureRoutes(fastify, fileStorage, embeddingPipeline);
 
-  // Content retrieval routes (Task 1.10)
-  const db = getDatabaseService();
-  await registerContentRoutes(fastify, db, fileStorage);
+  // Content retrieval routes (Task 1.10 + Task 1.12)
+  await registerContentRoutes(fastify, db, fileStorage, vectorStore);
 
   // TODO: Task 2.4 - Register search routes
 
