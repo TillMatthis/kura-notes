@@ -7,6 +7,7 @@
 import { config, printConfig } from './config/index.js';
 import { getDatabaseService } from './services/database/index.js';
 import { getFileStorageService } from './services/fileStorage.js';
+import { getEmbeddingService } from './services/embeddingService.js';
 import {
   logger,
   logStartup,
@@ -69,6 +70,22 @@ async function init() {
     logServiceReady('File Storage', {
       baseDirectory: config.storageBasePath,
     });
+
+    // Initialize embedding service
+    logServiceInit('Embedding Service');
+    const embeddingService = getEmbeddingService();
+    if (embeddingService.isAvailable()) {
+      logServiceReady('Embedding Service', {
+        model: config.openaiEmbeddingModel,
+        status: 'available',
+      });
+    } else {
+      logger.warn('⚠️  Embedding Service initialized without API key', {
+        status: 'unavailable',
+        reason: 'OPENAI_API_KEY not configured',
+        impact: 'Vector embeddings will not be generated',
+      });
+    }
 
     // Initialize Fastify server
     logServiceInit('API Server');
