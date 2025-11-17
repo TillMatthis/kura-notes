@@ -31,13 +31,18 @@ interface FileStorageConfig {
 
 /**
  * File Storage Service
+ * Singleton pattern - use getInstance() to get the instance
  */
 export class FileStorageService {
+  private static instance: FileStorageService | null = null;
   private baseDirectory: string;
   private logger: winston.Logger;
   private db: DatabaseService;
 
-  constructor(config: FileStorageConfig, db: DatabaseService) {
+  /**
+   * Private constructor - use getInstance() instead
+   */
+  private constructor(config: FileStorageConfig, db: DatabaseService) {
     this.baseDirectory = config.baseDirectory;
     this.db = db;
 
@@ -52,6 +57,28 @@ export class FileStorageService {
 
     // Ensure base directory exists
     this.ensureDirectoryExists(this.baseDirectory);
+  }
+
+  /**
+   * Get or create file storage instance (singleton)
+   */
+  public static getInstance(config?: FileStorageConfig, db?: DatabaseService): FileStorageService {
+    if (!FileStorageService.instance) {
+      if (!config || !db) {
+        throw new Error('FileStorageConfig and DatabaseService required for first initialization');
+      }
+      FileStorageService.instance = new FileStorageService(config, db);
+    }
+    return FileStorageService.instance;
+  }
+
+  /**
+   * Reset the singleton instance (useful for testing)
+   */
+  public static resetInstance(): void {
+    if (FileStorageService.instance) {
+      FileStorageService.instance = null;
+    }
   }
 
   /**
@@ -446,3 +473,13 @@ export class FileStorageService {
     }
   }
 }
+
+/**
+ * Export singleton instance getter
+ */
+export const getFileStorageService = (
+  config?: FileStorageConfig,
+  db?: DatabaseService
+): FileStorageService => {
+  return FileStorageService.getInstance(config, db);
+};

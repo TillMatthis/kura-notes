@@ -136,4 +136,7 @@ export const ApiErrors = {
 
   badRequest: (message = 'Bad request'): ApiError =>
     new ApiError(ErrorCode.BAD_REQUEST, message, 400),
+
+  storageError: (message = 'Storage operation failed'): ApiError =>
+    new ApiError(ErrorCode.UPLOAD_FAILED, message, 500),
 };
