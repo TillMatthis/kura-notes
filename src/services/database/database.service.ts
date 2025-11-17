@@ -303,6 +303,21 @@ export class DatabaseService {
   }
 
   /**
+   * Update content tags only
+   * Convenience method for bulk tag operations
+   */
+  public updateContentTags(id: string, tags: string[]): Content | null {
+    logger.debug('Updating content tags', { id, tags });
+
+    const stmt = this.db.prepare(
+      'UPDATE content SET tags = @tags, updated_at = CURRENT_TIMESTAMP WHERE id = @id'
+    );
+    stmt.run({ id, tags: JSON.stringify(tags) });
+
+    return this.getContentById(id);
+  }
+
+  /**
    * Delete content by ID
    */
   public deleteContent(id: string): boolean {

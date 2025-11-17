@@ -742,5 +742,275 @@ export async function registerContentRoutes(
     }
   );
 
+  /**
+   * POST /api/content/bulk/delete
+   * Delete multiple content items at once
+   */
+  fastify.post(
+    '/api/content/bulk/delete',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['ids'],
+          properties: {
+            ids: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: 1,
+              maxItems: 100, // Limit to 100 items per bulk operation
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { ids } = request.body as { ids: string[] };
+
+      try {
+        logger.info('Bulk delete request received', {
+          count: ids.length,
+          ids: ids.slice(0, 10), // Log first 10 IDs only
+        });
+
+        const results = {
+          successful: [] as string[],
+          failed: [] as { id: string; error: string }[],
+        };
+
+        // Process each deletion
+        for (const id of ids) {
+          try {
+            // Get content metadata to find file path
+            const content = await db.getContentById(id);
+            if (!content) {
+              results.failed.push({ id, error: 'Content not found' });
+              continue;
+            }
+
+            // Delete from filesystem
+            try {
+              await fileStorage.deleteFile(content.file_path);
+            } catch (error) {
+              logger.warn('Failed to delete file from filesystem', {
+                id,
+                file_path: content.file_path,
+                error,
+              });
+              // Continue with deletion even if file doesn't exist
+            }
+
+            // Delete thumbnail if it exists
+            if (content.thumbnail_path) {
+              try {
+                await fileStorage.deleteFile(content.thumbnail_path);
+              } catch (error) {
+                logger.warn('Failed to delete thumbnail', {
+                  id,
+                  thumbnail_path: content.thumbnail_path,
+                  error,
+                });
+              }
+            }
+
+            // Delete from vector store
+            try {
+              await vectorStore.deleteDocument(id);
+            } catch (error) {
+              logger.warn('Failed to delete from vector store', { id, error });
+              // Continue with deletion even if vector store fails
+            }
+
+            // Delete from database
+            await db.deleteContent(id);
+
+            results.successful.push(id);
+            logger.info('Content deleted successfully in bulk operation', { id });
+          } catch (error) {
+            logger.error('Failed to delete content in bulk operation', {
+              id,
+              error,
+            });
+            results.failed.push({
+              id,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+
+        const statusCode =
+          results.failed.length === 0
+            ? 200
+            : results.successful.length === 0
+            ? 500
+            : 207; // Multi-Status for partial success
+
+        logger.info('Bulk delete completed', {
+          total: ids.length,
+          successful: results.successful.length,
+          failed: results.failed.length,
+        });
+
+        return reply.code(statusCode).send({
+          success: results.failed.length === 0,
+          results,
+          message: `Deleted ${results.successful.length} of ${ids.length} items`,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        logger.error('Unexpected error in bulk delete', { error });
+        throw ApiErrors.storageError(
+          error instanceof Error ? error.message : 'Failed to delete content'
+        );
+      }
+    }
+  );
+
+  /**
+   * POST /api/content/bulk/tag
+   * Add tags to multiple content items at once
+   */
+  fastify.post(
+    '/api/content/bulk/tag',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['ids', 'tags'],
+          properties: {
+            ids: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: 1,
+              maxItems: 100, // Limit to 100 items per bulk operation
+            },
+            tags: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: 1,
+              maxItems: 20, // Match individual tag limit
+            },
+            mode: {
+              type: 'string',
+              enum: ['add', 'replace'],
+              default: 'add',
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { ids, tags, mode = 'add' } = request.body as {
+        ids: string[];
+        tags: string[];
+        mode?: 'add' | 'replace';
+      };
+
+      try {
+        // Validate tags format
+        const tagRegex = /^[a-zA-Z0-9_-]+$/;
+        for (const tag of tags) {
+          if (!tagRegex.test(tag) || tag.length > 50) {
+            throw ApiErrors.validationError(
+              `Invalid tag format: "${tag}". Tags must be alphanumeric with dashes/underscores, max 50 characters.`
+            );
+          }
+        }
+
+        logger.info('Bulk tag request received', {
+          count: ids.length,
+          tags,
+          mode,
+          ids: ids.slice(0, 10), // Log first 10 IDs only
+        });
+
+        const results = {
+          successful: [] as string[],
+          failed: [] as { id: string; error: string }[],
+        };
+
+        // Process each item
+        for (const id of ids) {
+          try {
+            // Get current content
+            const content = await db.getContentById(id);
+            if (!content) {
+              results.failed.push({ id, error: 'Content not found' });
+              continue;
+            }
+
+            // Calculate new tags
+            let newTags: string[];
+            if (mode === 'replace') {
+              newTags = tags;
+            } else {
+              // Add mode: merge with existing tags, remove duplicates
+              const existingTags = content.tags || [];
+              newTags = Array.from(new Set([...existingTags, ...tags]));
+            }
+
+            // Enforce max tags limit
+            if (newTags.length > 20) {
+              results.failed.push({
+                id,
+                error: `Too many tags (${newTags.length}). Maximum is 20.`,
+              });
+              continue;
+            }
+
+            // Update tags in database
+            await db.updateContentTags(id, newTags);
+
+            results.successful.push(id);
+            logger.info('Tags updated successfully in bulk operation', {
+              id,
+              tagsAdded: tags,
+              mode,
+            });
+          } catch (error) {
+            logger.error('Failed to update tags in bulk operation', {
+              id,
+              error,
+            });
+            results.failed.push({
+              id,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+
+        const statusCode =
+          results.failed.length === 0
+            ? 200
+            : results.successful.length === 0
+            ? 500
+            : 207; // Multi-Status for partial success
+
+        logger.info('Bulk tag operation completed', {
+          total: ids.length,
+          successful: results.successful.length,
+          failed: results.failed.length,
+        });
+
+        return reply.code(statusCode).send({
+          success: results.failed.length === 0,
+          results,
+          message: `Updated tags for ${results.successful.length} of ${ids.length} items`,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        // If it's already an API error, re-throw it
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
+        logger.error('Unexpected error in bulk tag operation', { error });
+        throw ApiErrors.storageError(
+          error instanceof Error ? error.message : 'Failed to update tags'
+        );
+      }
+    }
+  );
+
   logger.info('Content retrieval routes registered');
 }
