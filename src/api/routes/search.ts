@@ -28,6 +28,8 @@ interface SearchResultItem {
     updatedAt: string;
     source: string | null;
     annotation: string | null;
+    imageMetadata?: any;
+    pdfMetadata?: any;
   };
 }
 

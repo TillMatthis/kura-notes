@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS content (
   embedding_status TEXT DEFAULT 'pending', -- Embedding status: 'pending' | 'completed' | 'failed'
   thumbnail_path TEXT,                  -- Path to generated thumbnail (for images)
   image_metadata TEXT,                  -- JSON metadata for images: '{"width":1920,"height":1080,"format":"jpeg","size":123456}'
+  pdf_metadata TEXT,                    -- JSON metadata for PDFs: '{"filename":"doc.pdf","size":123456,"pageCount":10}'
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -110,3 +111,6 @@ VALUES (2, 'Add embedding_status field to content table');
 
 INSERT OR IGNORE INTO schema_version (version, description)
 VALUES (3, 'Add thumbnail support and image metadata fields');
+
+INSERT OR IGNORE INTO schema_version (version, description)
+VALUES (4, 'Add pdf_metadata field for PDF file information');

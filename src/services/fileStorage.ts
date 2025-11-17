@@ -21,6 +21,7 @@ import { validateFile, inferMimeType } from '../utils/fileValidation.js';
 import { DatabaseService } from './database/database.service.js';
 import type { CreateContentInput } from '../models/content.js';
 import { ThumbnailService } from './thumbnailService.js';
+import { PdfService } from './pdfService.js';
 
 /**
  * File storage service configuration
@@ -40,6 +41,7 @@ export class FileStorageService {
   private logger: winston.Logger;
   private db: DatabaseService;
   private thumbnailService: ThumbnailService | null = null;
+  private pdfService: PdfService | null = null;
 
   /**
    * Private constructor - use getInstance() instead
@@ -47,11 +49,13 @@ export class FileStorageService {
   private constructor(
     config: FileStorageConfig,
     db: DatabaseService,
-    thumbnailService?: ThumbnailService
+    thumbnailService?: ThumbnailService,
+    pdfService?: PdfService
   ) {
     this.baseDirectory = config.baseDirectory;
     this.db = db;
     this.thumbnailService = thumbnailService || null;
+    this.pdfService = pdfService || null;
 
     // Setup logger
     this.logger =
@@ -72,13 +76,14 @@ export class FileStorageService {
   public static getInstance(
     config?: FileStorageConfig,
     db?: DatabaseService,
-    thumbnailService?: ThumbnailService
+    thumbnailService?: ThumbnailService,
+    pdfService?: PdfService
   ): FileStorageService {
     if (!FileStorageService.instance) {
       if (!config || !db) {
         throw new Error('FileStorageConfig and DatabaseService required for first initialization');
       }
-      FileStorageService.instance = new FileStorageService(config, db, thumbnailService);
+      FileStorageService.instance = new FileStorageService(config, db, thumbnailService, pdfService);
     }
     return FileStorageService.instance;
   }
@@ -247,6 +252,31 @@ export class FileStorageService {
         }
       }
 
+      // Extract PDF metadata for PDFs
+      let pdfMetadata: any | undefined;
+
+      if (contentType === 'pdf' && this.pdfService) {
+        this.logger.debug('Extracting PDF metadata', { id, filename: originalFilename });
+
+        try {
+          pdfMetadata = await this.pdfService.extractMetadata(
+            buffer,
+            originalFilename || 'document.pdf'
+          );
+
+          this.logger.info('PDF metadata extracted successfully', {
+            id,
+            metadata: pdfMetadata,
+          });
+        } catch (error) {
+          this.logger.warn('Failed to extract PDF metadata', {
+            id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+          // Continue without PDF metadata - don't fail the entire upload
+        }
+      }
+
       // Save metadata to database using existing Content interface
       const dbInput: CreateContentInput = {
         id,
@@ -264,10 +294,11 @@ export class FileStorageService {
         this.db.createContent(dbInput);
 
         // Then update with thumbnail and metadata if available
-        if (thumbnailPath || imageMetadata) {
+        if (thumbnailPath || imageMetadata || pdfMetadata) {
           this.db.updateContent(id, {
             thumbnail_path: thumbnailPath,
             image_metadata: imageMetadata,
+            pdf_metadata: pdfMetadata,
           });
         }
       } catch (dbError) {
@@ -541,7 +572,8 @@ export class FileStorageService {
 export const getFileStorageService = (
   config?: FileStorageConfig,
   db?: DatabaseService,
-  thumbnailService?: ThumbnailService
+  thumbnailService?: ThumbnailService,
+  pdfService?: PdfService
 ): FileStorageService => {
-  return FileStorageService.getInstance(config, db, thumbnailService);
+  return FileStorageService.getInstance(config, db, thumbnailService, pdfService);
 };

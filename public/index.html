@@ -171,7 +171,7 @@
         const itemsHtml = data.items.map(item => {
           const icon = getContentTypeIcon(item.content_type);
           const relativeTime = formatRelativeTime(item.created_at);
-          const title = item.title || item.annotation || 'Untitled';
+          const title = item.title || item.annotation || (item.content_type === 'pdf' && item.pdf_metadata ? item.pdf_metadata.filename : 'Untitled');
           const tagsHtml = item.tags && item.tags.length > 0
             ? item.tags.map(tag => `<span class="tag">${tag}</span>`).join('')
             : '';
@@ -186,6 +186,17 @@
                </div>`
             : `<div class="item-icon">${icon}</div>`;
 
+          // Add PDF metadata if available
+          let pdfInfoHtml = '';
+          if (item.content_type === 'pdf' && item.pdf_metadata) {
+            const sizeKB = Math.round(item.pdf_metadata.size / 1024);
+            const sizeMB = sizeKB > 1024 ? (sizeKB / 1024).toFixed(1) + ' MB' : sizeKB + ' KB';
+            const pageInfo = item.pdf_metadata.pageCount ? `${item.pdf_metadata.pageCount} pages` : '';
+            pdfInfoHtml = `<p class="item-meta" style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.25rem;">
+              ${sizeMB}${pageInfo ? ' • ' + pageInfo : ''}
+            </p>`;
+          }
+
           return `
             <div class="item-card" onclick="viewContent('${item.id}')">
               ${thumbnailHtml}
@@ -195,6 +206,7 @@
                   <span class="item-date">${relativeTime}</span>
                 </div>
                 ${item.annotation && item.title !== item.annotation ? `<p class="item-annotation">${escapeHtml(item.annotation)}</p>` : ''}
+                ${pdfInfoHtml}
                 ${tagsHtml ? `<div class="item-tags">${tagsHtml}</div>` : ''}
               </div>
             </div>
