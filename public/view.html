@@ -144,6 +144,29 @@
         `
         : '';
 
+      // Add image metadata if available
+      let imageMetadataHtml = '';
+      if (data.content_type === 'image' && data.image_metadata) {
+        const meta = data.image_metadata;
+        const sizeKB = Math.round(meta.size / 1024);
+        const sizeMB = sizeKB > 1024 ? (sizeKB / 1024).toFixed(2) + ' MB' : sizeKB + ' KB';
+
+        imageMetadataHtml = `
+          <div class="metadata-row">
+            <div class="metadata-label">Dimensions</div>
+            <div class="metadata-value">${meta.width} × ${meta.height} px</div>
+          </div>
+          <div class="metadata-row">
+            <div class="metadata-label">Format</div>
+            <div class="metadata-value">${meta.format.toUpperCase()}</div>
+          </div>
+          <div class="metadata-row">
+            <div class="metadata-label">File Size</div>
+            <div class="metadata-value">${sizeMB}</div>
+          </div>
+        `;
+      }
+
       return `
         <div class="content-header">
           <div class="content-icon">${icon}</div>
@@ -158,6 +181,7 @@
 
         <div class="metadata-section">
           ${annotationHtml}
+          ${imageMetadataHtml}
           ${tagsHtml}
           <div class="metadata-row">
             <div class="metadata-label">Created</div>
@@ -185,7 +209,7 @@
           </div>
         `;
       } else if (data.content_type === 'image') {
-        // Display image inline
+        // Display image inline with zoom modal
         const imageUrl = `${API_BASE_URL}/api/content/${data.id}/file`;
         const title = data.title || 'Image';
         return `
@@ -193,16 +217,44 @@
             <h2 class="content-section-title">Image</h2>
             <div style="text-align: center; margin-top: var(--spacing-lg);">
               <img
+                id="content-image"
                 src="${imageUrl}"
                 alt="${escapeHtml(title)}"
-                style="max-width: 100%; height: auto; border-radius: var(--radius-md); box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
-                onclick="window.open('${imageUrl}', '_blank')"
+                style="max-width: 100%; height: auto; border-radius: var(--radius-md); box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: zoom-in;"
+                onclick="openImageModal('${imageUrl}', '${escapeHtml(title)}')"
               />
               <p style="margin-top: var(--spacing-sm); font-size: 0.875rem; color: var(--text-muted);">
-                Click image to view full size
+                Click image to view fullscreen
               </p>
             </div>
           </div>
+
+          <!-- Image Modal -->
+          <div id="image-modal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); cursor: zoom-out;" onclick="closeImageModal()">
+            <span style="position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; cursor: pointer;" onclick="closeImageModal()">&times;</span>
+            <img id="modal-image" style="margin: auto; display: block; max-width: 90%; max-height: 90%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+          </div>
+
+          <script>
+            function openImageModal(imageUrl, title) {
+              const modal = document.getElementById('image-modal');
+              const modalImg = document.getElementById('modal-image');
+              modal.style.display = 'block';
+              modalImg.src = imageUrl;
+              modalImg.alt = title;
+            }
+
+            function closeImageModal() {
+              document.getElementById('image-modal').style.display = 'none';
+            }
+
+            // Close modal with Escape key
+            document.addEventListener('keydown', function(event) {
+              if (event.key === 'Escape') {
+                closeImageModal();
+              }
+            });
+          </script>
         `;
       } else if (data.content_type === 'pdf') {
         // Provide download link for PDFs

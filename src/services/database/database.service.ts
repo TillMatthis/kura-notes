@@ -249,6 +249,16 @@ export class DatabaseService {
       params.embedding_status = input.embedding_status;
     }
 
+    if (input.thumbnail_path !== undefined) {
+      updates.push('thumbnail_path = @thumbnail_path');
+      params.thumbnail_path = input.thumbnail_path;
+    }
+
+    if (input.image_metadata !== undefined) {
+      updates.push('image_metadata = @image_metadata');
+      params.image_metadata = JSON.stringify(input.image_metadata);
+    }
+
     // Always update the updated_at timestamp
     updates.push('updated_at = CURRENT_TIMESTAMP');
 
@@ -437,6 +447,7 @@ export class DatabaseService {
     return {
       ...row,
       tags: row.tags ? JSON.parse(row.tags) : [],
+      image_metadata: row.image_metadata ? JSON.parse(row.image_metadata) : null,
     };
   }
 

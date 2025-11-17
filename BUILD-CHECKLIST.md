@@ -2,7 +2,7 @@
 
 **Project:** KURA Notes MVP
 **Timeline:** 2-4 weeks
-**Last Updated:** 2025-11-17 (Task 3.1 Complete)
+**Last Updated:** 2025-11-17 (Task 3.2 Complete)
 
 ## How to Use This Checklist
 
@@ -17,10 +17,10 @@
 
 **Phase 1 (Foundation):** 7/12 tasks complete
 **Phase 2 (Search):** 8/8 tasks complete ✅
-**Phase 3 (Complete MVP):** 1/10 tasks complete
+**Phase 3 (Complete MVP):** 2/10 tasks complete
 **Phase 4 (Polish & Deploy):** 0/6 tasks complete
 
-**Overall Progress:** 16/36 tasks complete (44%)
+**Overall Progress:** 17/36 tasks complete (47%)
 
 ---
 
@@ -1038,37 +1038,54 @@
 ---
 
 ### Task 3.2: Image Display & Thumbnails
-**Branch:** `task/022-image-display`  
-**Estimated Time:** 2-3 hours  
+**Branch:** `claude/image-thumbnails-display-01T6qAZwhCFdoKynFFYnQAaQ`
+**Estimated Time:** 2-3 hours
 **Depends On:** Task 1.11
 
-- [ ] Update content view for images
+- [x] Update content view for images
   - Display image inline
-  - Add zoom/fullscreen option
-  - Show EXIF data (optional)
-- [ ] Generate thumbnails
-  - Create thumbnail on upload
-  - Store in separate directory
+  - Add zoom/fullscreen option (lightbox modal with Escape key support)
+  - Show EXIF data (optional - deferred, showing basic metadata instead)
+- [x] Generate thumbnails
+  - Create thumbnail on upload (using sharp library)
+  - Store in separate directory (data/content/thumbnails/)
   - Serve thumbnail in lists
-- [ ] Update recent items to show thumbnails
-  - Small preview for images
-  - Placeholder for PDFs
-- [ ] Add image metadata
-  - Dimensions
-  - File size
-  - Format
-- [ ] Optimize image serving
+- [x] Update recent items to show thumbnails
+  - Small preview for images (80x80px thumbnails)
+  - Placeholder for PDFs (icon fallback)
+- [x] Add image metadata
+  - Dimensions (width × height)
+  - File size (displayed in KB/MB)
+  - Format (JPEG, PNG, etc.)
+- [x] Optimize image serving
   - Correct content-type headers
-  - Caching headers
+  - Caching headers (1 hour for thumbnails, 1 year for full images)
 
 **Acceptance Criteria:**
-- Images display correctly
-- Thumbnails show in lists
-- Full images viewable
-- Fast loading
-- Metadata displayed
+- ✅ Images display correctly
+- ✅ Thumbnails show in lists (recent items and search results)
+- ✅ Full images viewable (with lightbox modal)
+- ✅ Fast loading (thumbnails max 300x300px, JPEG quality 80)
+- ✅ Metadata displayed (dimensions, size, format)
 
-**Completion Date:** _________
+**Completion Date:** 2025-11-17
+
+**Notes:**
+- Installed and integrated sharp library for high-quality thumbnail generation
+- Created comprehensive ThumbnailService with configurable dimensions and quality
+- Updated database schema to include thumbnail_path and image_metadata fields (schema version 3)
+- Thumbnails generated automatically on image upload with graceful fallback on failure
+- Created GET /api/content/:id/thumbnail endpoint that serves thumbnails or falls back to full images
+- Frontend improvements:
+  - Content view displays full images inline with lightbox modal for fullscreen viewing
+  - Image metadata (dimensions, format, file size) displayed in content view
+  - Recent items page shows 80x80px thumbnail previews for images
+  - Search results show thumbnail previews for images
+  - All image displays have fallback to icon if thumbnail fails to load
+- Image serving optimized with proper Content-Type and Cache-Control headers
+- Thumbnail deletion integrated into content deletion workflow
+- All TypeScript compilation successful
+- Server initialization verified with schema version 3
 
 ---
 

@@ -176,9 +176,19 @@
             ? item.tags.map(tag => `<span class="tag">${tag}</span>`).join('')
             : '';
 
+          // Show thumbnail for images
+          const thumbnailHtml = item.content_type === 'image'
+            ? `<div class="item-thumbnail">
+                 <img src="${API_BASE_URL}/api/content/${item.id}/thumbnail"
+                      alt="${escapeHtml(title)}"
+                      style="width: 80px; height: 80px; object-fit: cover; border-radius: var(--radius-sm);"
+                      onerror="this.parentElement.innerHTML='<div class=\\'item-icon\\'>${icon}</div>'">
+               </div>`
+            : `<div class="item-icon">${icon}</div>`;
+
           return `
             <div class="item-card" onclick="viewContent('${item.id}')">
-              <div class="item-icon">${icon}</div>
+              ${thumbnailHtml}
               <div class="item-content">
                 <div class="item-header">
                   <h3 class="item-title">${escapeHtml(title)}</h3>

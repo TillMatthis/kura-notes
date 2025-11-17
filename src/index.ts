@@ -8,6 +8,7 @@ import { config, printConfig } from './config/index.js';
 import { getDatabaseService } from './services/database/index.js';
 import { getFileStorageService } from './services/fileStorage.js';
 import { getEmbeddingService } from './services/embeddingService.js';
+import { getThumbnailService } from './services/thumbnailService.js';
 import {
   logger,
   logStartup,
@@ -58,6 +59,20 @@ async function init() {
       contentByType: stats.byType,
     });
 
+    // Initialize thumbnail service
+    logServiceInit('Thumbnail Service');
+    const thumbnailService = getThumbnailService({
+      baseDirectory: config.storageBasePath,
+      thumbnailDirectory: 'thumbnails',
+      maxWidth: 300,
+      maxHeight: 300,
+      quality: 80,
+    });
+    logServiceReady('Thumbnail Service', {
+      maxSize: '300x300px',
+      quality: 80,
+    });
+
     // Initialize file storage service
     logServiceInit('File Storage');
     getFileStorageService(
@@ -65,10 +80,12 @@ async function init() {
         baseDirectory: config.storageBasePath,
         logger,
       },
-      db
+      db,
+      thumbnailService
     );
     logServiceReady('File Storage', {
       baseDirectory: config.storageBasePath,
+      thumbnailsEnabled: true,
     });
 
     // Initialize embedding service

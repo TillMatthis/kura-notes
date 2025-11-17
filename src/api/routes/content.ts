@@ -342,6 +342,108 @@ export async function registerContentRoutes(
   );
 
   /**
+   * GET /api/content/:id/thumbnail
+   * Get thumbnail for image content
+   * If thumbnail doesn't exist, serves the full image
+   * Returns 404 for non-image content
+   */
+  fastify.get<{ Params: { id: string } }>(
+    '/api/content/:id/thumbnail',
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply
+    ): Promise<void> => {
+      const { id } = request.params;
+
+      logger.debug('Thumbnail request', { id });
+
+      // Get metadata from database
+      const metadata = db.getContentById(id);
+
+      if (!metadata) {
+        logger.warn('Content not found', { id });
+        throw ApiErrors.notFound('Content not found');
+      }
+
+      // Only serve thumbnails for images
+      if (metadata.content_type !== 'image') {
+        logger.warn('Thumbnail requested for non-image content', {
+          id,
+          contentType: metadata.content_type,
+        });
+        throw ApiErrors.notFound('Thumbnails only available for images');
+      }
+
+      try {
+        // Determine which file to serve: thumbnail or full image
+        let filePathToServe = metadata.file_path;
+        let isThumbnail = false;
+
+        if (metadata.thumbnail_path) {
+          // Serve thumbnail if it exists
+          filePathToServe = metadata.thumbnail_path;
+          isThumbnail = true;
+          logger.debug('Serving thumbnail', { id, thumbnailPath: filePathToServe });
+        } else {
+          // Fall back to full image
+          logger.debug('No thumbnail available, serving full image', {
+            id,
+            filePath: filePathToServe,
+          });
+        }
+
+        // Get the absolute path
+        const fs = await import('fs');
+        const path = await import('path');
+        const config = await import('../../config/index.js');
+
+        const absolutePath = path.join(config.config.storageBasePath, filePathToServe);
+
+        // Check if file exists
+        if (!fs.existsSync(absolutePath)) {
+          logger.error('File not found on disk', { id, path: absolutePath });
+          throw ApiErrors.storageError('File not found on disk');
+        }
+
+        // Determine content type
+        let contentType = 'image/jpeg';
+        if (filePathToServe.endsWith('.png')) {
+          contentType = 'image/png';
+        } else if (filePathToServe.endsWith('.gif')) {
+          contentType = 'image/gif';
+        } else if (filePathToServe.endsWith('.webp')) {
+          contentType = 'image/webp';
+        }
+
+        // Set headers for caching (1 hour for thumbnails)
+        reply.header('Content-Type', contentType);
+        reply.header('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+
+        logger.info('Serving thumbnail/image', {
+          id,
+          isThumbnail,
+          contentType,
+          path: filePathToServe,
+        });
+
+        // Create read stream and send
+        const stream = fs.createReadStream(absolutePath);
+        return reply.send(stream);
+      } catch (error) {
+        // If it's already an API error, re-throw it
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
+        logger.error('Unexpected error serving thumbnail', { error, id });
+        throw ApiErrors.storageError(
+          error instanceof Error ? error.message : 'Failed to serve thumbnail'
+        );
+      }
+    }
+  );
+
+  /**
    * DELETE /api/content/:id
    * Delete content and associated file
    */
