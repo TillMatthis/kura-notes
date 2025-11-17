@@ -66,7 +66,16 @@ export async function createServer(): Promise<FastifyInstance> {
   fastify.setErrorHandler(errorHandler);
 
   // Set not found handler
-  fastify.setNotFoundHandler((request, reply) => {
+  fastify.setNotFoundHandler(async (request, reply) => {
+    // Check if request accepts HTML (browser request)
+    const acceptsHtml = request.headers.accept?.includes('text/html');
+
+    if (acceptsHtml && !request.url.startsWith('/api/')) {
+      // Serve 404 HTML page for browser requests
+      return reply.status(404).type('text/html').sendFile('404.html');
+    }
+
+    // Send JSON response for API requests
     reply.status(404).send({
       error: 'NotFound',
       code: 'NOT_FOUND',
