@@ -1,8 +1,151 @@
-# KURA Notes - Performance Testing Scripts
+# KURA Notes - Scripts
 
-This directory contains scripts for performance testing and test data generation.
+This directory contains scripts for performance testing, backup/restore, and system setup.
 
 ## Scripts
+
+### Backup & Restore
+
+#### `backup.sh`
+
+Creates comprehensive backups of all KURA Notes data.
+
+**Usage:**
+```bash
+# Create backup with defaults (7-day retention)
+./scripts/backup.sh
+
+# Custom retention period
+./scripts/backup.sh --retention 30
+
+# Custom backup directory
+./scripts/backup.sh --dir /mnt/backups
+
+# Verbose mode
+./scripts/backup.sh --verbose
+```
+
+**What it backs up:**
+- SQLite database (`data/metadata/knowledge.db`)
+- All content files (`data/content/`)
+- ChromaDB vector embeddings (Docker volume)
+- Backup metadata and timestamps
+
+**Features:**
+- Timestamped archives (`backup-YYYY-MM-DD-HHMMSS.tar.gz`)
+- Automatic retention policy (delete old backups)
+- Compression (tar.gz format)
+- Detailed logging
+- Colored output for better UX
+
+See [docs/backup.md](../docs/backup.md) for complete documentation.
+
+---
+
+#### `restore.sh`
+
+Restores KURA Notes from a backup archive.
+
+**Usage:**
+```bash
+# List available backups
+./scripts/restore.sh --list
+
+# Restore from backup (with confirmation)
+./scripts/restore.sh backup-2025-11-18-120000.tar.gz
+
+# Restore without confirmation
+./scripts/restore.sh --force backup-2025-11-18-120000.tar.gz
+
+# Restore without safety backup
+./scripts/restore.sh --no-backup backup-2025-11-18-120000.tar.gz
+```
+
+**Safety features:**
+- Backup integrity verification
+- Safety backup before restore
+- Automatic service stop/restart (Docker)
+- Database integrity check
+- Confirmation prompt
+
+See [docs/backup.md](../docs/backup.md) for complete documentation.
+
+---
+
+#### `setup-backup-cron.sh`
+
+Sets up automated daily backups using cron.
+
+**Usage:**
+```bash
+# Set up daily backup at 2:00 AM
+./scripts/setup-backup-cron.sh
+
+# Custom time and retention
+./scripts/setup-backup-cron.sh --time 03:30 --retention 14
+
+# With email notifications
+./scripts/setup-backup-cron.sh --email admin@example.com
+
+# Remove automated backups
+./scripts/setup-backup-cron.sh --uninstall
+```
+
+**Features:**
+- Easy cron job setup
+- Configurable backup time
+- Configurable retention period
+- Email notifications on failure (optional)
+- Wrapper script for proper logging
+
+See [docs/backup.md](../docs/backup.md) for complete documentation.
+
+---
+
+### System Setup
+
+#### `setup.sh`
+
+Interactive setup script for KURA Notes configuration.
+
+**Usage:**
+```bash
+# Interactive mode
+./scripts/setup.sh
+
+# Automatic mode (non-interactive)
+./scripts/setup.sh --auto
+```
+
+**What it does:**
+- Generates secure API keys
+- Creates `.env` file from template
+- Creates required directories
+- Installs dependencies
+- Validates configuration
+
+See [docs/setup.md](../docs/setup.md) for complete documentation.
+
+---
+
+#### `validate-docker.sh`
+
+Validates Docker configuration and services.
+
+**Usage:**
+```bash
+./scripts/validate-docker.sh
+```
+
+**What it checks:**
+- Docker is installed and running
+- docker-compose.yml is valid
+- Services can be built
+- Health checks pass
+
+---
+
+### Performance Testing
 
 ### 1. `generateTestData.ts`
 
