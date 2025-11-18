@@ -1641,7 +1641,7 @@
   - Verify functionality (health check verification documented)
 - [x] Document deployment process
   - Created comprehensive docs/deployment.md (10 sections, 500+ lines)
-  - Includes Proxmox deployment, troubleshooting, backups, security
+  - Includes VPS/Proxmox deployment, troubleshooting, backups, security
 
 **Acceptance Criteria:**
 - ✅ Production Dockerfile optimized (multi-stage, alpine, non-root, public folder)
@@ -1665,7 +1665,7 @@
   - Backup and restore procedures (automated scripts)
   - Advanced topics (Traefik, scaling, monitoring)
 - Docker testing steps documented (Docker not available in this environment)
-- Ready for Proxmox deployment (Task 4.4)
+- Ready for VPS deployment (Task 4.4)
 
 ---
 
@@ -1780,41 +1780,69 @@
 
 ---
 
-### Task 4.4: Deploy to Proxmox
-**Branch:** `task/034-proxmox-deployment`  
+### Task 4.4: Deploy to VPS
+**Branch:** `task/034-vps-deployment`  
 **Estimated Time:** 3-4 hours  
 **Depends On:** Task 4.2, Task 4.3
 
-- [ ] Prepare Proxmox VM/LXC
-  - Install Docker
-  - Install Docker Compose
-  - Configure networking
-  - Set up storage
+**Target Server:** Contabo VPS
+- OS: Debian Linux 12
+- RAM: 3.82 GB
+- CPU: 2 cores (AMD EPYC)
+- Disk: 273 GB free
+- IP: 167.86.121.109
+- Domain: TBD
+
+- [ ] Prepare VPS server
+  - SSH access configured
+  - Install Docker (`apt install docker.io`)
+  - Install Docker Compose (`apt install docker-compose-plugin`)
+  - Create application directory (`/opt/kura-notes`)
+  - Configure firewall (ports 22, 80, 443, 3000)
 - [ ] Deploy application
-  - Copy docker-compose.yml
-  - Set up .env file
-  - Create data directories
-  - Start containers
-- [ ] Configure reverse proxy (optional)
-  - Nginx or Caddy
-  - SSL certificate
-  - Domain name
+  - Transfer docker-compose.yml via SCP
+  - Transfer .env file with production values
+  - Create data directories (`mkdir -p data/content data/metadata data/vectors`)
+  - Pull/build Docker images
+  - Start containers (`docker compose up -d`)
+- [ ] Configure domain and SSL (optional but recommended)
+  - Point domain to 167.86.121.109
+  - Install Caddy or Nginx reverse proxy
+  - Configure SSL certificate (Let's Encrypt)
+  - Update iOS shortcut with domain URL
 - [ ] Set up monitoring (basic)
-  - Container health checks
-  - Disk usage alerts
-  - Log aggregation (optional)
+  - Container health checks (`docker ps`)
+  - Disk usage monitoring (`df -h`)
+  - Log access (`docker compose logs`)
+  - Set up log rotation
 - [ ] Test deployment
-  - All features work
-  - iOS shortcut connects
-  - Performance acceptable
+  - Health endpoint: https://your-domain.com/api/health
+  - Web interface accessible
+  - Can create/search content
+  - iOS shortcut connects successfully
+  - Performance acceptable (search <500ms)
+- [ ] Document deployment
+  - SSH commands used
+  - Configuration decisions
+  - Troubleshooting notes
+  - Backup strategy
 
 **Acceptance Criteria:**
-- Application running on Proxmox
-- Accessible from local network
-- All features work
-- Stable and performant
+- Application running on VPS
+- Accessible from internet (or via VPN if preferred)
+- All features work (capture, search, delete)
+- SSL configured (if using domain)
+- iOS shortcut works from anywhere
+- Performance meets requirements
+- Deployment documented for future updates
 
 **Completion Date:** _________
+
+**Notes:**
+- Changed from Proxmox (homelab) to VPS (Contabo) for better accessibility
+- VPS enables iOS shortcut to work from anywhere (not just home network)
+- Consider VPN access if keeping private vs. public with domain
+- VPS has sufficient resources (3.8GB RAM, 273GB disk) for single-user MVP
 
 ---
 
@@ -1905,6 +1933,11 @@
 **Not in MVP scope, but tracked for later:**
 
 ### Phase 2A: Enhanced Features
+- [ ] **PRIORITY: Migrate to EmbeddingGemma** (Privacy + cost savings)
+  - Build Python embedding service container
+  - Replace OpenAI API calls with local embeddings
+  - Re-generate embeddings for existing content
+  - See PHASE-2-PLAN.md for details
 - [ ] OCR for images (Tesseract.js)
 - [ ] PDF text extraction (pdf-parse)
 - [ ] MCP server for Claude Desktop
