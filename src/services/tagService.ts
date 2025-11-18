@@ -69,7 +69,7 @@ export class TagService {
     try {
       // Get all content with tags
       const stmt = this.db.raw(
-        'SELECT tags FROM content WHERE tags IS NOT NULL AND tags != "[]"'
+        "SELECT tags FROM content WHERE tags IS NOT NULL AND tags != '[]'"
       ) as Array<{ tags: string }>;
 
       // Parse all tags and count occurrences
