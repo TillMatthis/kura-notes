@@ -43,6 +43,7 @@ RUN npm ci --only=production && \
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
+COPY src/services/database/schema.sql ./dist/services/database/
 
 # Copy public folder (web UI assets)
 COPY public ./public
