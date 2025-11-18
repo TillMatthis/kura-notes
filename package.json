@@ -12,6 +12,8 @@
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch --runInBand",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\"",
+    "setup": "bash scripts/setup.sh",
+    "setup:auto": "bash scripts/setup.sh --auto",
     "generate-test-data": "tsx scripts/generateTestData.ts",
     "measure-performance": "tsx scripts/measurePerformance.ts"
   },
