@@ -44,6 +44,9 @@ RUN npm ci --only=production && \
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
+# Copy public folder (web UI assets)
+COPY public ./public
+
 # Create data directory and set permissions
 RUN mkdir -p /data/content /data/metadata /data/vectors /data/logs && \
     chown -R kura:kura /data /app
