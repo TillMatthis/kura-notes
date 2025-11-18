@@ -141,49 +141,120 @@ export function loadConfig(): Config {
     tlsKeyPath: getOptionalEnv('TLS_KEY_PATH'),
   };
 
-  // Validate configuration in production
-  if (nodeEnv === 'production') {
-    validateProductionConfig(config);
-  }
+  // Validate configuration
+  validateConfig(config);
 
   return config;
 }
 
 /**
- * Validate production configuration
- * Ensures critical settings are properly configured
+ * Validate URL format
  */
-function validateProductionConfig(config: Config): void {
+function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validate port number
+ */
+function isValidPort(port: number): boolean {
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
+/**
+ * Validate log level
+ */
+function isValidLogLevel(level: string): boolean {
+  return ['error', 'warn', 'info', 'debug'].includes(level);
+}
+
+/**
+ * Validate configuration
+ * Collects all validation errors and fails fast with clear messages
+ */
+function validateConfig(config: Config): void {
   const errors: string[] = [];
+  const warnings: string[] = [];
 
-  // API key should be changed from default
-  if (config.apiKey === 'dev-api-key-change-in-production') {
-    errors.push('API_KEY must be changed from default value in production');
+  // Validate required fields (always required)
+  if (!config.vectorStoreUrl) {
+    errors.push('VECTOR_STORE_URL is required');
+  } else if (!isValidUrl(config.vectorStoreUrl)) {
+    errors.push(`VECTOR_STORE_URL must be a valid HTTP/HTTPS URL (got: ${config.vectorStoreUrl})`);
   }
 
-  // API key should be strong enough
-  if (config.apiKey.length < 32) {
-    errors.push('API_KEY should be at least 32 characters long in production');
+  // Validate port
+  if (!isValidPort(config.apiPort)) {
+    errors.push(`API_PORT must be a valid port number 1-65535 (got: ${config.apiPort})`);
   }
 
-  // OpenAI API key should be set if using embeddings
-  if (!config.openaiApiKey) {
-    console.warn(
-      '⚠️  OPENAI_API_KEY is not set. Vector embeddings will not work without it.'
-    );
+  // Validate log level
+  if (!isValidLogLevel(config.logLevel)) {
+    errors.push(`LOG_LEVEL must be one of: error, warn, info, debug (got: ${config.logLevel})`);
   }
 
-  // CORS should be restricted
-  if (config.corsOrigin === '*') {
-    console.warn(
-      '⚠️  CORS_ORIGIN is set to "*" (allow all). Consider restricting in production.'
-    );
+  // Validate max file size
+  if (config.maxFileSize <= 0) {
+    errors.push(`MAX_FILE_SIZE must be a positive integer (got: ${config.maxFileSize})`);
   }
 
+  // Validate TLS configuration (both or neither)
+  if ((config.tlsCertPath && !config.tlsKeyPath) || (!config.tlsCertPath && config.tlsKeyPath)) {
+    errors.push('TLS_CERT_PATH and TLS_KEY_PATH must both be set or both be empty');
+  }
+
+  // Production-specific validation
+  if (config.nodeEnv === 'production') {
+    // API key should be changed from default
+    if (config.apiKey === 'dev-api-key-change-in-production') {
+      errors.push('API_KEY must be changed from default value in production');
+    }
+
+    // API key should be strong enough
+    if (config.apiKey.length < 32) {
+      errors.push('API_KEY should be at least 32 characters long in production');
+    }
+
+    // OpenAI API key should be set
+    if (!config.openaiApiKey) {
+      warnings.push(
+        'OPENAI_API_KEY is not set. Vector embeddings will not work without it.'
+      );
+    }
+
+    // CORS should be restricted
+    if (config.corsOrigin === '*') {
+      warnings.push(
+        'CORS_ORIGIN is set to "*" (allow all). Consider restricting to specific domain(s) in production.'
+      );
+    }
+  }
+
+  // Development/test warnings
+  if (config.nodeEnv !== 'production') {
+    if (!config.openaiApiKey) {
+      warnings.push(
+        'OPENAI_API_KEY is not set. Search functionality will be limited to full-text search only.'
+      );
+    }
+  }
+
+  // Print warnings
+  if (warnings.length > 0) {
+    console.warn('\n⚠️  Configuration warnings:');
+    warnings.forEach((warning) => console.warn(`  - ${warning}`));
+    console.warn('');
+  }
+
+  // Fail fast if there are errors
   if (errors.length > 0) {
-    throw new Error(
-      `Production configuration validation failed:\n${errors.map((e) => `  - ${e}`).join('\n')}`
-    );
+    const errorMessage = `\n❌ Configuration validation failed:\n${errors.map((e) => `  - ${e}`).join('\n')}\n\nPlease check your .env file and environment variables.\nSee .env.example for required configuration.\n`;
+    throw new Error(errorMessage);
   }
 }
 

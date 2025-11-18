@@ -18,7 +18,7 @@ export async function errorHandler(
   reply: FastifyReply
 ): Promise<void> {
   const path = request.url;
-  const statusCode = 'statusCode' in error ? error.statusCode : 500;
+  const statusCode = ('statusCode' in error ? error.statusCode : 500) ?? 500;
 
   // Log error with context
   logger.error('API error', {
