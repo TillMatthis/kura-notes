@@ -31,6 +31,12 @@ let fastifyInstance: FastifyInstance | null = null;
  * Initialize application
  */
 async function init() {
+  console.log('🚀 Starting KURA Notes...');
+  console.log('Version:', version);
+  console.log('Node version:', process.version);
+  console.log('Platform:', process.platform);
+  console.log('');
+
   // Log startup
   logStartup(appName, version);
 
@@ -43,10 +49,12 @@ async function init() {
 
   try {
     // Initialize database
+    console.log('📊 Initializing database...');
     logServiceInit('Database');
     const db = getDatabaseService(config.databaseUrl);
 
     // Check database health
+    console.log('  ↳ Running database health check...');
     const isHealthy = db.healthCheck();
     if (!isHealthy) {
       throw new Error('Database health check failed');
@@ -60,8 +68,11 @@ async function init() {
       totalContent: stats.totalContent,
       contentByType: stats.byType,
     });
+    console.log('✓ Database initialized');
+    console.log('');
 
     // Initialize thumbnail service
+    console.log('🖼️  Initializing thumbnail service...');
     logServiceInit('Thumbnail Service');
     const thumbnailService = getThumbnailService({
       baseDirectory: config.storageBasePath,
@@ -74,15 +85,21 @@ async function init() {
       maxSize: '300x300px',
       quality: 80,
     });
+    console.log('✓ Thumbnail service initialized');
+    console.log('');
 
     // Initialize PDF service
+    console.log('📄 Initializing PDF service...');
     logServiceInit('PDF Service');
     const pdfService = PdfService.getInstance();
     logServiceReady('PDF Service', {
       status: 'available',
     });
+    console.log('✓ PDF service initialized');
+    console.log('');
 
     // Initialize file storage service
+    console.log('💾 Initializing file storage...');
     logServiceInit('File Storage');
     getFileStorageService(
       {
@@ -98,8 +115,11 @@ async function init() {
       thumbnailsEnabled: true,
       pdfMetadataEnabled: true,
     });
+    console.log('✓ File storage initialized');
+    console.log('');
 
     // Initialize embedding service
+    console.log('🔍 Initializing embedding service...');
     logServiceInit('Embedding Service');
     const embeddingService = getEmbeddingService();
     if (embeddingService.isAvailable()) {
@@ -107,32 +127,43 @@ async function init() {
         model: config.openaiEmbeddingModel,
         status: 'available',
       });
+      console.log('✓ Embedding service initialized (available)');
     } else {
       logger.warn('⚠️  Embedding Service initialized without API key', {
         status: 'unavailable',
         reason: 'OPENAI_API_KEY not configured',
         impact: 'Vector embeddings will not be generated',
       });
+      console.log('⚠️  Embedding service initialized (unavailable - no API key)');
     }
+    console.log('');
 
     // Initialize stats service
+    console.log('📈 Initializing stats service...');
     logServiceInit('Stats Service');
     getStatsService(config.storageBasePath);
     logServiceReady('Stats Service', {
       cacheTTL: '5 minutes',
       status: 'available',
     });
+    console.log('✓ Stats service initialized');
+    console.log('');
 
     // Initialize Fastify server
+    console.log('🌐 Creating Fastify server...');
     logServiceInit('API Server');
     fastifyInstance = await createServer();
     logServiceReady('API Server', {
       port: config.apiPort,
       cors: config.corsOrigin,
     });
+    console.log('✓ Fastify server created');
+    console.log('');
 
     // Start the server
+    console.log('🚀 Starting server on port', config.apiPort, '...');
     await startServer(fastifyInstance);
+    console.log('✓ Server listening on port', config.apiPort);
 
     // TODO: Task 2.1 - Initialize ChromaDB connection
 
@@ -141,7 +172,21 @@ async function init() {
     logger.info(`🌐 API available at: http://localhost:${config.apiPort}`);
     logger.info(`🏥 Health check: http://localhost:${config.apiPort}/api/health`);
     logger.info('='.repeat(80));
+    console.log('');
+    console.log('✅ ALL SYSTEMS READY');
+    console.log('');
   } catch (error) {
+    console.error('');
+    console.error('❌ FATAL ERROR DURING INITIALIZATION');
+    console.error('='.repeat(80));
+    console.error('Error:', error);
+    if (error instanceof Error) {
+      console.error('Message:', error.message);
+      console.error('Stack:', error.stack);
+    }
+    console.error('='.repeat(80));
+    console.error('');
+
     logger.error('='.repeat(80));
     logServiceError('Application', error as Error);
     logger.error('='.repeat(80));
@@ -181,6 +226,15 @@ function setupShutdownHandlers() {
 
   // Handle uncaught exceptions
   process.on('uncaughtException', async (error) => {
+    console.error('');
+    console.error('❌ UNCAUGHT EXCEPTION');
+    console.error('='.repeat(80));
+    console.error('Error:', error);
+    console.error('Message:', error.message);
+    console.error('Stack:', error.stack);
+    console.error('='.repeat(80));
+    console.error('');
+
     logger.error('Uncaught exception', { error: error.message, stack: error.stack });
     logShutdown(appName, 'Uncaught exception');
     await shutdown('uncaughtException');
@@ -189,6 +243,18 @@ function setupShutdownHandlers() {
 
   // Handle unhandled promise rejections
   process.on('unhandledRejection', async (reason, promise) => {
+    console.error('');
+    console.error('❌ UNHANDLED PROMISE REJECTION');
+    console.error('='.repeat(80));
+    console.error('Reason:', reason);
+    console.error('Promise:', promise);
+    if (reason instanceof Error) {
+      console.error('Message:', reason.message);
+      console.error('Stack:', reason.stack);
+    }
+    console.error('='.repeat(80));
+    console.error('');
+
     logger.error('Unhandled promise rejection', { reason, promise });
     logShutdown(appName, 'Unhandled promise rejection');
     await shutdown('unhandledRejection');
@@ -201,6 +267,17 @@ setupShutdownHandlers();
 
 // Start application
 init().catch((error) => {
+  console.error('');
+  console.error('❌ UNCAUGHT ERROR IN INIT');
+  console.error('='.repeat(80));
+  console.error('Error:', error);
+  if (error instanceof Error) {
+    console.error('Message:', error.message);
+    console.error('Stack:', error.stack);
+  }
+  console.error('='.repeat(80));
+  console.error('');
+
   logger.error('Fatal error during initialization', {
     error: error.message,
     stack: error.stack,
