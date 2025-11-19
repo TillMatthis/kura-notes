@@ -172,32 +172,32 @@
 ---
 
 ### Task 1.4: File Storage Service
-**Branch:** `task/004-file-storage`  
-**Estimated Time:** 2-3 hours  
+**Branch:** `task/004-file-storage`
+**Estimated Time:** 2-3 hours
 **Depends On:** Task 1.3
 
-- [ ] Create file storage service
+- [x] Create file storage service
   - Generate date-based paths (/YYYY/MM/DD/)
   - UUID-based filenames
   - Store original filename in metadata
   - Create directories as needed
-- [ ] Implement file write operations
+- [x] Implement file write operations
   - Save text files
   - Save binary files (images, PDFs)
   - Handle errors gracefully
-- [ ] Implement file read operations
+- [x] Implement file read operations
   - Read by ID
   - Stream large files
   - Return file metadata
-- [ ] Implement file delete operations
+- [x] Implement file delete operations
   - Delete file from filesystem
   - Remove metadata from database
   - Handle missing files
-- [ ] Add file validation
+- [x] Add file validation
   - Check file types
   - Enforce size limits (50MB for MVP)
   - Validate formats
-- [ ] Write tests for file operations
+- [x] Write tests for file operations
 
 **Acceptance Criteria:**
 - Files stored in correct directory structure
@@ -253,20 +253,20 @@
 ---
 
 ### Task 1.6: API Foundation (Fastify Setup)
-**Branch:** `task/006-api-foundation`  
-**Estimated Time:** 2-3 hours  
+**Branch:** `task/006-api-foundation`
+**Estimated Time:** 2-3 hours
 **Depends On:** Task 1.5
 
-- [ ] Create Fastify server
+- [x] Create Fastify server
   - Configure CORS
   - Set up error handling
   - Add request logging
   - Configure JSON parsing
-- [ ] Implement authentication middleware
+- [x] Implement authentication middleware
   - Check API key in headers
   - Return 401 if invalid/missing
   - Skip auth for health endpoint
-- [ ] Create health check endpoint
+- [x] Create health check endpoint
   ```typescript
   GET /api/health
   Response: {
@@ -295,30 +295,30 @@
 ---
 
 ### Task 1.7: Content Capture API (Text Only)
-**Branch:** `task/007-capture-endpoint-text`  
-**Estimated Time:** 3-4 hours  
+**Branch:** `task/007-capture-endpoint-text`
+**Estimated Time:** 3-4 hours
 **Depends On:** Task 1.4, Task 1.6
 
-- [ ] Create POST /api/capture endpoint
+- [x] Create POST /api/capture endpoint
   - Accept JSON body with content
   - Validate request schema
   - Generate UUID for content
   - Extract metadata from request
-- [ ] Implement text content handling
+- [x] Implement text content handling
   - Save text to file
   - Store metadata in database
   - Return content ID
 - [ ] Add tags support
   - Store as JSON array in database
   - Validate tag format
-- [ ] Add annotation/context field
+- [x] Add annotation/context field
   - Optional user-provided context
   - Stored with content
-- [ ] Implement error handling
+- [x] Implement error handling
   - Validation errors
   - Storage errors
   - Database errors
-- [ ] Write integration tests
+- [x] Write integration tests
   - Successful capture
   - Validation failures
   - Error cases
@@ -433,30 +433,30 @@
 ---
 
 ### Task 1.10: View Recent Items
-**Branch:** `task/010-recent-items-view`  
-**Estimated Time:** 2-3 hours  
+**Branch:** `task/010-recent-items-view`
+**Estimated Time:** 2-3 hours
 **Depends On:** Task 1.8
 
-- [ ] Create GET /api/content/recent endpoint
+- [x] Create GET /api/content/recent endpoint
   - Return last 20 items
   - Include metadata only (not full content)
   - Order by created_at DESC
-- [ ] Display recent items on home page
+- [x] Display recent items on home page
   - List with title/annotation
   - Content type icon
   - Date (relative: "2 hours ago")
   - Tags
   - Click to view full content
-- [ ] Create GET /api/content/:id endpoint
+- [x] Create GET /api/content/:id endpoint
   - Return full content
   - Include all metadata
-- [ ] Create content view page
+- [x] Create content view page
   - Display full content
   - Show metadata
   - Back button
   - Delete button placeholder
-- [ ] Add loading states
-- [ ] Handle empty state (no content yet)
+- [x] Add loading states
+- [x] Handle empty state (no content yet)
 
 **Acceptance Criteria:**
 - Recent items load on home page
@@ -728,6 +728,7 @@
   - Database errors ✅
   - Invalid limit parameter ✅
 - [ ] Write integration tests - Deferred (manual testing documented)
+  - Manual testing done and Successful ✅
 
 **Acceptance Criteria:**
 - ✅ Can search with natural language
@@ -1781,8 +1782,8 @@
 ---
 
 ### Task 4.4: Deploy to VPS
-**Branch:** `task/034-vps-deployment`  
-**Estimated Time:** 3-4 hours  
+**Branch:** `task/034-vps-deployment`
+**Estimated Time:** 3-4 hours
 **Depends On:** Task 4.2, Task 4.3
 
 **Target Server:** Contabo VPS
@@ -1793,29 +1794,30 @@
 - IP: 167.86.121.109
 - Domain: TBD
 
-- [ ] Prepare VPS server
+- [x] Prepare VPS server
   - SSH access configured
   - Install Docker (`apt install docker.io`)
   - Install Docker Compose (`apt install docker-compose-plugin`)
   - Create application directory (`/opt/kura-notes`)
   - Configure firewall (ports 22, 80, 443, 3000)
-- [ ] Deploy application
+- [x] Deploy application
   - Transfer docker-compose.yml via SCP
   - Transfer .env file with production values
   - Create data directories (`mkdir -p data/content data/metadata data/vectors`)
   - Pull/build Docker images
   - Start containers (`docker compose up -d`)
-- [ ] Configure domain and SSL (optional but recommended)
+- [-] Configure domain and SSL (optional but recommended)
   - Point domain to 167.86.121.109
   - Install Caddy or Nginx reverse proxy
   - Configure SSL certificate (Let's Encrypt)
   - Update iOS shortcut with domain URL
-- [ ] Set up monitoring (basic)
+  - SSL not configured yet
+- [x] Set up monitoring (basic)
   - Container health checks (`docker ps`)
   - Disk usage monitoring (`df -h`)
   - Log access (`docker compose logs`)
   - Set up log rotation
-- [ ] Test deployment
+- [x] Test deployment
   - Health endpoint: https://your-domain.com/api/health
   - Web interface accessible
   - Can create/search content
@@ -1847,14 +1849,14 @@
 ---
 
 ### Task 4.5: iOS Shortcut Finalization
-**Branch:** `task/035-ios-shortcut-final`  
-**Estimated Time:** 2 hours  
+**Branch:** `task/035-ios-shortcut-final`
+**Estimated Time:** 2 hours
 **Depends On:** Task 4.4
 
-- [ ] Update shortcut with production URL
+- [x] Update shortcut with production URL
   - Change API endpoint
   - Update API key
-- [ ] Test from iOS device
+- [x] Test from iOS device
   - Share text
   - Share images
   - Share PDFs
@@ -1863,11 +1865,7 @@
   - Screenshots
   - Step-by-step instructions
   - Troubleshooting section
-- [ ] Share shortcut
-  - iCloud link
-  - QR code
-  - GitHub (in docs)
-- [ ] Test edge cases
+- [-] Test edge cases
   - Large files
   - Special characters
   - Poor network
@@ -1883,36 +1881,36 @@
 ---
 
 ### Task 4.6: Documentation & Testing
-**Branch:** `task/036-documentation`  
-**Estimated Time:** 3-4 hours  
+**Branch:** `task/036-documentation`
+**Estimated Time:** 3-4 hours
 **Depends On:** All previous tasks
 
-- [ ] Write comprehensive README
+- [x] Write comprehensive README
   - Project description
   - Features
   - Installation instructions
   - Usage guide
   - Architecture overview
-- [ ] Document API endpoints
+- [x] Document API endpoints
   - Request/response formats
   - Authentication
   - Error codes
   - Examples
-- [ ] Create user guide
+- [x] Create user guide
   - How to capture content
   - How to search
   - How to manage content
   - Tips and tricks
-- [ ] Run final tests
+- [-] Run final tests
   - All unit tests
   - All integration tests
   - Manual testing checklist
   - Performance testing
-- [ ] Create troubleshooting guide
+- [x] Create troubleshooting guide
   - Common issues
   - Solutions
   - How to get logs
-- [ ] Update all planning docs
+- [x] Update all planning docs
   - Mark checklist complete
   - Document any deviations
   - Note lessons learned
@@ -1980,5 +1978,5 @@
 
 ---
 
-**Last Updated:** 2025-01-15  
+**Last Updated:** 2025-01-15
 **Next Review:** After completing Phase 1
