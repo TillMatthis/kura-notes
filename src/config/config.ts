@@ -60,14 +60,17 @@ function getEnv(key: string, defaultValue?: string): string {
     throw new Error(`Required environment variable ${key} is not set`);
   }
 
-  return value;
+  // Trim whitespace to prevent authentication issues
+  return value.trim();
 }
 
 /**
  * Get optional environment variable
  */
 function getOptionalEnv(key: string): string | undefined {
-  return process.env[key];
+  const value = process.env[key];
+  // Trim whitespace if value exists
+  return value ? value.trim() : undefined;
 }
 
 /**

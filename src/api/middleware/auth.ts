@@ -54,9 +54,9 @@ export async function authMiddleware(
   let apiKey: string;
 
   if (authHeader.startsWith('Bearer ')) {
-    apiKey = authHeader.substring(7);
+    apiKey = authHeader.substring(7).trim();
   } else {
-    apiKey = authHeader;
+    apiKey = authHeader.trim();
   }
 
   // Validate API key
@@ -96,9 +96,9 @@ export async function optionalAuthMiddleware(
   let apiKey: string;
 
   if (authHeader.startsWith('Bearer ')) {
-    apiKey = authHeader.substring(7);
+    apiKey = authHeader.substring(7).trim();
   } else {
-    apiKey = authHeader;
+    apiKey = authHeader.trim();
   }
 
   if (apiKey !== config.apiKey) {
