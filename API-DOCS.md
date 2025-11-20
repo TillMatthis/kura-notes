@@ -363,6 +363,151 @@ All errors follow this format:
 
 ---
 
+## MCP Integration (Model Context Protocol)
+
+**Endpoint:** `https://kura.tillmaessen.de/mcp/sse`
+**Transport:** Server-Sent Events (SSE)
+
+The KURA MCP server enables AI assistants like Claude Desktop to interact with your notes through the Model Context Protocol.
+
+### Quick Setup for Claude Desktop
+
+1. **Locate your Claude Desktop config file:**
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Linux: `~/.config/Claude/claude_desktop_config.json`
+
+2. **Add KURA MCP server:**
+   ```json
+   {
+     "mcpServers": {
+       "kura-notes": {
+         "url": "https://kura.tillmaessen.de/mcp/sse",
+         "transport": {
+           "type": "sse"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Restart Claude Desktop**
+
+### Available MCP Tools
+
+#### 🔍 `kura_search`
+Search notes semantically using natural language.
+
+**Parameters:**
+- `query` (required): Natural language search query
+- `limit` (optional): Max results (default: 10, max: 50)
+- `contentType` (optional): Filter by type (comma-separated: text, image, pdf, audio)
+- `tags` (optional): Filter by tags (comma-separated)
+
+**Example Usage in Claude:**
+```
+"Search my KURA notes for machine learning concepts"
+"Find notes about Docker with tag 'devops'"
+```
+
+#### ✏️ `kura_create`
+Create a new text note.
+
+**Parameters:**
+- `content` (required): The text content
+- `title` (optional): Note title
+- `annotation` (optional): Additional context
+- `tags` (optional): Array of tags
+
+**Example Usage in Claude:**
+```
+"Create a note in KURA with title 'Meeting Notes' and content 'Discussed Q4 roadmap...'"
+"Save this to KURA with tags ['important', 'todo']"
+```
+
+#### 📄 `kura_get`
+Get a specific note by ID.
+
+**Parameters:**
+- `id` (required): Note ID
+
+**Example Usage in Claude:**
+```
+"Get the full content of note abc123 from KURA"
+"Show me the note with ID xyz789"
+```
+
+#### 📋 `kura_list_recent`
+List recent notes (last 20). Returns metadata only.
+
+**Parameters:** None
+
+**Example Usage in Claude:**
+```
+"Show me my recent KURA notes"
+"What are my latest notes?"
+```
+
+#### 🗑️ `kura_delete`
+Delete a note by ID. **Permanent action.**
+
+**Parameters:**
+- `id` (required): Note ID to delete
+
+**Example Usage in Claude:**
+```
+"Delete note abc123 from KURA"
+```
+
+### Usage Examples
+
+Once configured, you can interact with KURA naturally:
+
+**Search and Research:**
+```
+"Search my notes for anything about TypeScript decorators"
+"Find all notes tagged 'meeting' from this month"
+```
+
+**Create and Organize:**
+```
+"Create a note about today's standup: We discussed API performance improvements"
+"Save this code snippet to KURA with tags ['typescript', 'reference']"
+```
+
+**Browse and Manage:**
+```
+"Show me my most recent notes"
+"Get the content of note abc123 and summarize it"
+"Delete the note with ID xyz789"
+```
+
+### MCP Server Details
+
+**Health Check:**
+```bash
+curl https://kura.tillmaessen.de/mcp/health
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "service": "kura-mcp-server",
+  "version": "0.1.0",
+  "timestamp": "2025-11-20T00:00:00.000Z"
+}
+```
+
+**Authentication:**
+- Uses same `API_KEY` as REST API
+- Handled automatically by MCP server
+- No manual authentication required in Claude Desktop
+
+**For detailed setup instructions and troubleshooting, see [MCP-SETUP.md](./MCP-SETUP.md)**
+
+---
+
 ## Tips & Best Practices
 
 ### Tagging Strategy
