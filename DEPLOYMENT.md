@@ -18,7 +18,7 @@
 **Network:**
 - IP Address: 167.86.121.109
 - Domain: kura.tillmaessen.de
-- SSL: Automatic via Caddy (Let's Encrypt)
+- SSL: Automatic via System Caddy (Let's Encrypt)
 
 ---
 
@@ -174,7 +174,9 @@ docker ps
 docker-compose logs -f
 ```
 
-### 8. Install and Configure Caddy
+### 8. Install and Configure System Caddy
+
+**Note:** We use system-installed Caddy (apt) instead of Docker Caddy to support multiple services on the VPS.
 
 ```bash
 # Add Caddy repository
@@ -199,14 +201,32 @@ nano /etc/caddy/Caddyfile
 **Caddyfile content:**
 ```
 kura.tillmaessen.de {
+    # Main API (proxies to Docker container on port 3000)
     reverse_proxy localhost:3000
+
+    # MCP Server endpoint (proxies to Docker container on port 3001)
+    handle /mcp* {
+        reverse_proxy localhost:3001
+    }
 }
 ```
 
+**Key Configuration Notes:**
+- Main API runs on `localhost:3000` (docker-compose exposes this port)
+- MCP server runs on `localhost:3001` (docker-compose exposes this port)
+- System Caddy handles SSL/TLS via Let's Encrypt automatically
+- The `/mcp*` path is routed to the MCP server for remote MCP client access
+
 ```bash
+# Test Caddy configuration
+caddy validate --config /etc/caddy/Caddyfile
+
 # Restart Caddy
 systemctl restart caddy
 systemctl status caddy
+
+# View Caddy logs if issues occur
+journalctl -u caddy -f
 ```
 
 ### 9. Configure DNS
@@ -431,11 +451,11 @@ docker run --rm \
 ## Security Considerations
 
 ### Current Security Measures
-✅ HTTPS via Caddy (automatic Let's Encrypt certificates)  
-✅ API authentication required (Bearer token)  
-✅ Strong random API key (64+ characters)  
-✅ Firewall configured (nftables)  
-✅ Only necessary ports open (22, 80, 443)  
+✅ HTTPS via System Caddy (automatic Let's Encrypt certificates)
+✅ API authentication required (Bearer token)
+✅ Strong random API key (64+ characters)
+✅ Firewall configured (UFW)
+✅ Only necessary ports open (22, 80, 443)
 
 ### Known Security Gaps (Phase 2 Improvements)
 ⚠️ Web UI publicly accessible (no authentication)  
@@ -444,8 +464,8 @@ docker run --rm \
 ⚠️ CORS set to "*" (allows all origins)  
 
 ### Recommended Phase 2 Security Enhancements
-- Add basic authentication to Caddy for web UI
-- Implement rate limiting
+- Add basic authentication to System Caddy for web UI
+- Implement rate limiting in Caddy or application layer
 - Consider IP whitelisting for admin access
 - Restrict CORS to specific domains
 - Set up fail2ban for SSH protection
@@ -594,11 +614,11 @@ docker-compose up -d
 
 ## Next Steps (Phase 2)
 
-- [ ] Add basic authentication to web UI (Caddy basicauth)
+- [ ] Add basic authentication to web UI (System Caddy basicauth)
 - [ ] Implement proper healthchecks
 - [ ] Set up automated backups
 - [ ] Add monitoring and alerting
-- [ ] Implement rate limiting
+- [ ] Implement rate limiting (Caddy or application layer)
 - [ ] Security audit and hardening
 - [ ] Add web UI settings page for API key
 - [ ] Migrate to EmbeddingGemma (cost savings)
