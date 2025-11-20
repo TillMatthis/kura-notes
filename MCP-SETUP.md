@@ -23,16 +23,20 @@ The server runs as a separate Docker service and communicates with the KURA API 
          │ HTTPS/SSE
          ↓
 ┌──────────────────┐
-│  Caddy Proxy     │
+│  System Caddy    │
 │ (Reverse Proxy)  │
+│  apt-installed   │
 └────────┬─────────┘
          │
          ↓
 ┌──────────────────┐      ┌──────────────────┐
 │   MCP Server     │─────→│   KURA API       │
 │  (Port 3001)     │      │  (Port 3000)     │
+│   Docker         │      │   Docker         │
 └──────────────────┘      └──────────────────┘
 ```
+
+**Note:** We use system-installed Caddy (apt) instead of Docker Caddy to support multiple services on the VPS.
 
 ## Deployment
 
@@ -57,7 +61,7 @@ docker-compose logs -f mcp
 # Check MCP server health
 curl http://localhost:3001/health
 
-# Or via the public endpoint (requires Caddy to be running)
+# Or via the public endpoint (requires system Caddy to be running)
 curl https://kura.tillmaessen.de/mcp/health
 ```
 
@@ -300,17 +304,17 @@ and content 'Discussed Q1 goals: improve API performance, add new features...'"
 
 1. **Authentication:** The MCP server uses the same `API_KEY` as the KURA API for authentication. Make sure this key is kept secret.
 
-2. **HTTPS:** When deployed on a VPS, Caddy automatically handles HTTPS with Let's Encrypt certificates.
+2. **HTTPS:** When deployed on a VPS, system Caddy automatically handles HTTPS with Let's Encrypt certificates.
 
 3. **Firewall:** Ensure your VPS firewall allows connections on ports 80 and 443:
    ```bash
-   # Example for UFW (Ubuntu)
+   # Example for UFW (Ubuntu/Debian)
    sudo ufw allow 80/tcp
    sudo ufw allow 443/tcp
    sudo ufw enable
    ```
 
-4. **Rate Limiting:** Consider adding rate limiting in Caddy if you expose the MCP server publicly.
+4. **Rate Limiting:** Consider adding rate limiting in system Caddy if you expose the MCP server publicly.
 
 ## Troubleshooting
 
@@ -347,7 +351,7 @@ docker-compose restart mcp
 
 If SSE connections are timing out:
 
-1. Check that Caddy is properly configured with `flush_interval -1` for the MCP endpoint
+1. Check that system Caddy is properly configured for the MCP endpoint (see DEPLOYMENT.md for Caddyfile configuration)
 2. Verify no intermediate proxies are buffering the connection
 3. Check firewall rules allow long-lived connections
 

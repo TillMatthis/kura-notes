@@ -91,49 +91,6 @@ services:
         max-file: "3"
 
   # ============================================
-  # Reverse Proxy (Caddy)
-  # ============================================
-  caddy:
-    image: caddy:2-alpine
-    container_name: kura-notes-caddy
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"  # HTTP/3 support
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-      - caddy-logs:/var/log/caddy
-    depends_on:
-      api:
-        condition: service_healthy
-      mcp:
-        condition: service_healthy
-    networks:
-      - kura-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ============================================
   # Vector Database (ChromaDB)
   # ============================================
   vectordb:
@@ -180,12 +137,3 @@ volumes:
   chroma-data:
     driver: local
     name: kura-chroma-data
-  caddy-data:
-    driver: local
-    name: kura-caddy-data
-  caddy-config:
-    driver: local
-    name: kura-caddy-config
-  caddy-logs:
-    driver: local
-    name: kura-caddy-logs
