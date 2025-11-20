@@ -22,6 +22,12 @@
           <li><a href="/upload.html" class="nav-link">Upload File</a></li>
           <li><a href="/search.html" class="nav-link">Search</a></li>
           <li><a href="/tags.html" class="nav-link">Tags</a></li>
+          <li>
+            <button class="settings-button" onclick="openSettings()" aria-label="Settings" title="Settings">
+              <span class="api-status-indicator" id="api-status-indicator"></span>
+              <span>⚙️</span>
+            </button>
+          </li>
         </ul>
       </nav>
     </div>
@@ -140,6 +146,7 @@
 
   <!-- Scripts -->
   <script src="/js/main.js"></script>
+  <script src="/js/settings.js"></script>
   <script src="/js/tag-autocomplete.js"></script>
   <script>
     // State management
