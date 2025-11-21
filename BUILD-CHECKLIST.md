@@ -18,9 +18,9 @@
 **Phase 1 (Foundation):** 7/12 tasks complete
 **Phase 2 (Search):** 8/8 tasks complete ✅
 **Phase 3 (Complete MVP):** 10/10 tasks complete ✅
-**Phase 4 (Polish & Deploy):** 3/6 tasks complete
+**Phase 4 (Polish & Deploy):** 3/7 tasks complete
 
-**Overall Progress:** 28/36 tasks complete (78%)
+**Overall Progress:** 28/37 tasks complete (75.7%)
 
 ---
 
@@ -1923,6 +1923,103 @@
 - Planning docs updated
 
 **Completion Date:** _________
+
+---
+
+### Task 4.7: KOauth Integration (Multi-User Authentication)
+**Branch:** `task/037-koauth-integration`
+**Estimated Time:** 1-2 weeks
+**Depends On:** Task 4.4
+**Goal:** Integrate KOauth authentication service for multi-user support
+
+- [ ] **Infrastructure Setup**
+  - Add KOauth service to docker-compose.yml (port 3001)
+  - Add PostgreSQL service for KOauth (port 5432)
+  - Configure Caddy for auth.tillmaessen.de subdomain
+  - Create DNS A record for auth.tillmaessen.de
+  - Add KOauth environment variables to .env
+  - Test KOauth running independently
+
+- [ ] **Backend Integration**
+  - Install @tillmatthis/koauth-client package
+  - Initialize KOauth in src/index.ts (5 lines)
+  - Replace API key middleware with protectRoute()
+  - Update all API routes with authentication
+  - Add getUser() calls to extract user context
+  - Update config.ts with KOauth URLs
+
+- [ ] **Database Migration**
+  - Create migration 004-add-user-id.sql
+  - Add user_id column to content table
+  - Add user_id index for performance
+  - Create migration script for existing content
+  - Assign legacy content to default user
+  - Test migration rollback
+
+- [ ] **Service Updates**
+  - DatabaseService: Add user_id to all queries
+  - SearchService: Filter by user_id
+  - FileStorageService: Organize by user_id
+  - VectorStore: Add user_id metadata
+  - TagService: Scope tags by user
+  - StatsService: Calculate per-user stats
+
+- [ ] **API Endpoints**
+  - Update /api/capture with user context
+  - Update /api/search with user filtering
+  - Update /api/content/* with user ownership
+  - Update /api/tags with user scoping
+  - Add /api/me (user profile)
+  - Add /api/logout
+  - Update MCP routes with authentication
+
+- [ ] **Frontend Updates**
+  - Create public/auth/login.html page
+  - Add user menu/logout button
+  - Remove localStorage API key code
+  - Update all fetch() calls (rely on cookies)
+  - Handle 401 redirects to login
+  - Add authentication check on page load
+
+- [ ] **Testing & Migration**
+  - Test signup/login flow
+  - Test Google OAuth
+  - Test GitHub OAuth
+  - Test user isolation (multiple users)
+  - Test iOS Shortcut with JWT token
+  - Test Claude Desktop MCP with JWT
+  - Migrate existing single-user data
+  - Generate API keys for existing users
+
+- [ ] **Documentation**
+  - Update DEPLOYMENT.md with KOauth setup
+  - Update API-DOCS.md (JWT auth, not API key)
+  - Update USER-GUIDE.md (login/signup)
+  - Update technical-architecture.md
+  - Document OAuth provider setup
+  - Document data migration procedure
+
+**Acceptance Criteria:**
+- KOauth running as separate service
+- Users can signup/login (email + OAuth)
+- All API routes require authentication
+- Each user sees only their content
+- User isolation verified (multi-user test)
+- iOS Shortcut works with JWT token
+- Claude Desktop MCP authenticated
+- Legacy data migrated successfully
+- Documentation updated
+- No security vulnerabilities
+
+**Completion Date:** _________
+
+**Notes:**
+- Breaking change: Requires data migration
+- API incompatible: iOS shortcuts need JWT token
+- Multi-user: Each user isolated by user_id
+- OAuth providers: Google, GitHub enabled
+- Session management: JWT tokens via cookies
+- Zero downtime: Deploy KOauth first, migrate later
 
 ---
 
