@@ -119,3 +119,4 @@ temp/
 *.key
 *.crt
 !.certificates/.gitkeep
+.env
