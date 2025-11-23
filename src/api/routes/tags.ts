@@ -13,6 +13,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { TagService } from '../../services/tagService.js';
 import { logger } from '../../utils/logger.js';
 import { ApiErrors } from '../types/errors.js';
+import { getOptionalUser } from '../middleware/auth.js';
 
 /**
  * Register tag routes
@@ -146,7 +147,11 @@ export async function registerTagRoutes(
         const query = request.query.q;
         const limit = request.query.limit || 20;
 
+        // Get optional user (works for both authenticated and public access)
+        const user = getOptionalUser(request);
+
         logger.debug('GET /api/tags/search request received', {
+          userId: user?.id,
           query,
           limit,
         });
@@ -156,8 +161,8 @@ export async function registerTagRoutes(
           throw ApiErrors.validationError('Search query parameter (q) is required');
         }
 
-        // Search tags
-        const tags = tagService.searchTags(query, limit);
+        // Search tags (scoped to user if authenticated)
+        const tags = tagService.searchTags(query, user?.id || null, limit);
 
         reply.code(200).send({
           tags,

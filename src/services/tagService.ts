@@ -61,16 +61,23 @@ export class TagService {
 
   /**
    * Get all tags with their usage counts
+   * @param userId - Optional user ID to filter tags by user (null for legacy content)
    * @returns Array of tags sorted by count (most used first)
    */
-  public getAllTags(): TagWithCount[] {
-    logger.debug('Getting all tags with counts');
+  public getAllTags(userId: string | null = null): TagWithCount[] {
+    logger.debug('Getting all tags with counts', { userId });
 
     try {
-      // Get all content with tags
-      const stmt = this.db.raw(
-        "SELECT tags FROM content WHERE tags IS NOT NULL AND tags != '[]'"
-      ) as Array<{ tags: string }>;
+      // Get all content with tags, filtered by user if provided
+      let sql = "SELECT tags FROM content WHERE tags IS NOT NULL AND tags != '[]'";
+      const params: any[] = [];
+
+      if (userId) {
+        sql += ' AND user_id = ?';
+        params.push(userId);
+      }
+
+      const stmt = this.db.raw(sql, params) as Array<{ tags: string }>;
 
       // Parse all tags and count occurrences
       const tagCounts = new Map<string, number>();
@@ -107,19 +114,20 @@ export class TagService {
    * Search tags by query (case-insensitive)
    * Used for autocomplete functionality
    * @param query - Search query
+   * @param userId - Optional user ID to filter tags by user (null for legacy content)
    * @param limit - Maximum number of results (default: 20)
    * @returns Array of matching tags sorted by count
    */
-  public searchTags(query: string, limit = 20): TagWithCount[] {
-    logger.debug('Searching tags', { query, limit });
+  public searchTags(query: string, userId: string | null = null, limit = 20): TagWithCount[] {
+    logger.debug('Searching tags', { query, userId, limit });
 
     if (!query || query.trim().length === 0) {
       // Return all tags if no query provided
-      return this.getAllTags().slice(0, limit);
+      return this.getAllTags(userId).slice(0, limit);
     }
 
     try {
-      const allTags = this.getAllTags();
+      const allTags = this.getAllTags(userId);
       const normalizedQuery = query.toLowerCase().trim();
 
       // Filter tags that match the query (case-insensitive)
@@ -164,10 +172,11 @@ export class TagService {
    * Rename a tag across all content
    * @param oldTag - Tag name to rename
    * @param newTag - New tag name
+   * @param userId - Optional user ID to scope operation to user's content (null for legacy content)
    * @returns Number of content items updated
    */
-  public renameTag(oldTag: string, newTag: string): number {
-    logger.info('Renaming tag', { oldTag, newTag });
+  public renameTag(oldTag: string, newTag: string, userId: string | null = null): number {
+    logger.info('Renaming tag', { oldTag, newTag, userId });
 
     if (!oldTag || !newTag) {
       throw new Error('Old tag and new tag are required');
@@ -178,8 +187,8 @@ export class TagService {
     }
 
     try {
-      // Get all content with the old tag
-      const allContent = this.db.getAllContent(10000); // Get enough content
+      // Get all content with the old tag, filtered by user
+      const allContent = this.db.getAllContent(userId, 10000); // Get enough content
       let updateCount = 0;
 
       for (const content of allContent) {
@@ -192,8 +201,8 @@ export class TagService {
           // Remove duplicates (in case new tag already exists)
           const uniqueTags = Array.from(new Set(updatedTags));
 
-          // Update content
-          this.db.updateContent(content.id, { tags: uniqueTags });
+          // Update content with ownership verification
+          this.db.updateContent(content.id, userId, { tags: uniqueTags });
           updateCount++;
         }
       }
@@ -216,10 +225,11 @@ export class TagService {
    * Replaces all occurrences of sourceTags with targetTag
    * @param sourceTags - Array of tag names to merge from
    * @param targetTag - Tag name to merge into
+   * @param userId - Optional user ID to scope operation to user's content (null for legacy content)
    * @returns Number of content items updated
    */
-  public mergeTags(sourceTags: string[], targetTag: string): number {
-    logger.info('Merging tags', { sourceTags, targetTag });
+  public mergeTags(sourceTags: string[], targetTag: string, userId: string | null = null): number {
+    logger.info('Merging tags', { sourceTags, targetTag, userId });
 
     if (!sourceTags || sourceTags.length === 0) {
       throw new Error('Source tags are required');
@@ -230,7 +240,7 @@ export class TagService {
     }
 
     try {
-      const allContent = this.db.getAllContent(10000); // Get enough content
+      const allContent = this.db.getAllContent(userId, 10000); // Get enough content
       let updateCount = 0;
 
       for (const content of allContent) {
@@ -243,8 +253,8 @@ export class TagService {
           // Remove duplicates
           const uniqueTags = Array.from(new Set(updatedTags));
 
-          // Update content
-          this.db.updateContent(content.id, { tags: uniqueTags });
+          // Update content with ownership verification
+          this.db.updateContent(content.id, userId, { tags: uniqueTags });
           updateCount++;
         }
       }
@@ -265,17 +275,18 @@ export class TagService {
   /**
    * Delete a tag from all content
    * @param tag - Tag name to delete
+   * @param userId - Optional user ID to scope operation to user's content (null for legacy content)
    * @returns Number of content items updated
    */
-  public deleteTag(tag: string): number {
-    logger.info('Deleting tag', { tag });
+  public deleteTag(tag: string, userId: string | null = null): number {
+    logger.info('Deleting tag', { tag, userId });
 
     if (!tag) {
       throw new Error('Tag is required');
     }
 
     try {
-      const allContent = this.db.getAllContent(10000); // Get enough content
+      const allContent = this.db.getAllContent(userId, 10000); // Get enough content
       let updateCount = 0;
 
       for (const content of allContent) {
@@ -283,8 +294,8 @@ export class TagService {
           // Remove the tag
           const updatedTags = content.tags.filter((t) => t !== tag);
 
-          // Update content
-          this.db.updateContent(content.id, { tags: updatedTags });
+          // Update content with ownership verification
+          this.db.updateContent(content.id, userId, { tags: updatedTags });
           updateCount++;
         }
       }
@@ -303,10 +314,11 @@ export class TagService {
 
   /**
    * Get tag statistics
+   * @param userId - Optional user ID to scope statistics to user's content (null for legacy content)
    * @returns Statistics about tags
    */
-  public getTagStats() {
-    const allTags = this.getAllTags();
+  public getTagStats(userId: string | null = null) {
+    const allTags = this.getAllTags(userId);
 
     return {
       totalTags: allTags.length,

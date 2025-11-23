@@ -12,6 +12,7 @@ import { EmbeddingPipelineService } from '../../services/embeddingPipeline.js';
 import { ApiErrors } from '../types/errors.js';
 import { getContentTypeFromMime } from '../../utils/fileValidation.js';
 import type { ContentType } from '../../models/content.js';
+import { getAuthenticatedUser } from '../middleware/auth.js';
 
 /**
  * Request body schema for text content capture
@@ -98,9 +99,13 @@ async function handleTextCapture(
   fileStorage: FileStorageService,
   embeddingPipeline: EmbeddingPipelineService
 ): Promise<CaptureResponse> {
+  // Get authenticated user
+  const user = getAuthenticatedUser(request);
+
   const { content, title, annotation, tags } = request.body as CaptureTextRequest;
 
   logger.info('Text capture request received', {
+    userId: user.id,
     contentType: 'text',
     hasTitle: !!title,
     hasAnnotation: !!annotation,
@@ -110,7 +115,7 @@ async function handleTextCapture(
 
   // Validate content is not empty (after trimming)
   if (!content || content.trim().length === 0) {
-    logger.warn('Empty content in capture request');
+    logger.warn('Empty content in capture request', { userId: user.id });
     throw ApiErrors.validationError('Content cannot be empty');
   }
 
@@ -122,6 +127,7 @@ async function handleTextCapture(
   try {
     // Save file using file storage service
     const result = await fileStorage.saveFile({
+      userId: user.id, // KOauth user ID for multi-user support
       content,
       contentType: 'text',
       title,
@@ -131,11 +137,12 @@ async function handleTextCapture(
     });
 
     if (!result.success) {
-      logger.error('Failed to save content', { error: result.error });
+      logger.error('Failed to save content', { userId: user.id, error: result.error });
       throw ApiErrors.storageError(result.error || 'Failed to save content');
     }
 
     logger.info('Content captured successfully', {
+      userId: user.id,
       id: result.id,
       filePath: result.filePath,
     });
@@ -143,6 +150,7 @@ async function handleTextCapture(
     // Trigger async embedding generation (non-blocking)
     embeddingPipeline.processContentAsync({
       contentId: result.id!,
+      userId: user.id, // KOauth user ID for multi-user support
       contentType: 'text',
       content,
       annotation,
@@ -178,6 +186,9 @@ async function handleFileUpload(
   fileStorage: FileStorageService,
   embeddingPipeline: EmbeddingPipelineService
 ): Promise<CaptureResponse> {
+  // Get authenticated user
+  const user = getAuthenticatedUser(request);
+
   try {
     let file: MultipartFile | null = null;
     const metadata: FileUploadMetadata = {};
@@ -203,11 +214,12 @@ async function handleFileUpload(
     }
 
     if (!file) {
-      logger.warn('No file in multipart request');
+      logger.warn('No file in multipart request', { userId: user.id });
       throw ApiErrors.validationError('No file provided');
     }
 
     logger.info('File upload request received', {
+      userId: user.id,
       filename: file.filename,
       mimeType: file.mimetype,
       encoding: file.encoding,
@@ -237,12 +249,14 @@ async function handleFileUpload(
     const fileBuffer = await file.toBuffer();
 
     logger.debug('File buffered', {
+      userId: user.id,
       size: fileBuffer.length,
       contentType,
     });
 
     // Save file using file storage service
     const result = await fileStorage.saveFile({
+      userId: user.id, // KOauth user ID for multi-user support
       content: fileBuffer,
       contentType,
       title: metadata.title,
@@ -253,11 +267,12 @@ async function handleFileUpload(
     });
 
     if (!result.success) {
-      logger.error('Failed to save file', { error: result.error });
+      logger.error('Failed to save file', { userId: user.id, error: result.error });
       throw ApiErrors.storageError(result.error || 'Failed to save file');
     }
 
     logger.info('File uploaded successfully', {
+      userId: user.id,
       id: result.id,
       filePath: result.filePath,
       contentType,
@@ -267,6 +282,7 @@ async function handleFileUpload(
     // Trigger async embedding generation (non-blocking)
     embeddingPipeline.processContentAsync({
       contentId: result.id!,
+      userId: user.id, // KOauth user ID for multi-user support
       contentType,
       content: fileBuffer,
       annotation: metadata.annotation,

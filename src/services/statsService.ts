@@ -79,17 +79,18 @@ export class StatsService {
   /**
    * Get statistics with caching
    * Returns cached data if fresh, otherwise calculates new stats
+   * @param userId - Optional user ID to scope statistics to user's content (null for legacy content)
    */
-  public getStats(): Stats {
+  public getStats(userId: string | null = null): Stats {
     // Check if cache is valid
     if (this.cache && this.isCacheValid()) {
-      logger.debug('Returning cached stats');
+      logger.debug('Returning cached stats', { userId });
       return this.cache.data;
     }
 
     // Calculate new stats
-    logger.debug('Cache miss or expired, calculating fresh stats');
-    const stats = this.calculateStats();
+    logger.debug('Cache miss or expired, calculating fresh stats', { userId });
+    const stats = this.calculateStats(userId);
 
     // Update cache
     this.cache = {
@@ -122,25 +123,26 @@ export class StatsService {
 
   /**
    * Calculate all statistics
+   * @param userId - Optional user ID to scope statistics to user's content (null for legacy content)
    */
-  private calculateStats(): Stats {
-    logger.debug('Calculating statistics...');
+  private calculateStats(userId: string | null = null): Stats {
+    logger.debug('Calculating statistics...', { userId });
 
     const db = getDatabaseService();
     const tagService = getTagService();
 
-    // Get content counts
-    const totalItems = db.getTotalContentCount();
-    const byContentType = db.getContentCountByType();
+    // Get content counts (filtered by user)
+    const totalItems = db.getTotalContentCount(userId);
+    const byContentType = db.getContentCountByType(userId);
 
-    // Get monthly counts
-    const byMonth = this.calculateMonthlyStats();
+    // Get monthly counts (filtered by user)
+    const byMonth = this.calculateMonthlyStats(userId);
 
-    // Calculate storage usage
+    // Calculate storage usage (not filtered - shows total storage)
     const storageUsed = this.calculateStorageUsage();
 
-    // Get most used tags (top 10)
-    const allTags = tagService.getAllTags();
+    // Get most used tags (top 10, filtered by user)
+    const allTags = tagService.getAllTags(userId);
     const mostUsedTags = allTags
       .sort((a, b) => b.count - a.count)
       .slice(0, 10)
@@ -166,23 +168,33 @@ export class StatsService {
 
   /**
    * Calculate content count by month (last 12 months)
+   * @param userId - Optional user ID to scope statistics to user's content (null for legacy content)
    */
-  private calculateMonthlyStats(): Array<{ month: string; count: number }> {
+  private calculateMonthlyStats(userId: string | null = null): Array<{ month: string; count: number }> {
     const db = getDatabaseService();
 
-    // Query for monthly counts
-    const sql = `
+    // Query for monthly counts (filtered by user if provided)
+    let sql = `
       SELECT
         strftime('%Y-%m', created_at) as month,
         COUNT(*) as count
       FROM content
       WHERE created_at >= date('now', '-12 months')
+    `;
+
+    const params: any[] = [];
+    if (userId) {
+      sql += ' AND user_id = ?';
+      params.push(userId);
+    }
+
+    sql += `
       GROUP BY month
       ORDER BY month DESC
     `;
 
     try {
-      const results = db.raw(sql) as Array<{ month: string; count: number }>;
+      const results = db.raw(sql, params) as Array<{ month: string; count: number }>;
       return results;
     } catch (error) {
       logger.error('Failed to calculate monthly stats', { error });

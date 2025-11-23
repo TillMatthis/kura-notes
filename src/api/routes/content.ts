@@ -11,6 +11,7 @@ import { FileStorageService } from '../../services/fileStorage.js';
 import { VectorStoreService } from '../../services/vectorStore.js';
 import { ApiErrors } from '../types/errors.js';
 import type { ContentType } from '../../models/content.js';
+import { getAuthenticatedUser, getOptionalUser } from '../middleware/auth.js';
 
 /**
  * Content metadata for recent items list
@@ -159,8 +160,11 @@ export async function registerContentRoutes(
     async (_request: FastifyRequest, _reply: FastifyReply): Promise<RecentContentResponse> => {
       logger.debug('Recent content request received');
 
+      // Get optional user (works for both authenticated and public access)
+      const user = getOptionalUser(_request);
+
       try {
-        const items = db.getRecentContent(20);
+        const items = db.getRecentContent(user?.id || null, 20);
 
         // Map to metadata-only format (exclude file_path and extracted_text)
         const metadata: ContentMetadata[] = items.map((item) => ({
@@ -630,13 +634,16 @@ export async function registerContentRoutes(
       const { id } = request.params;
       const { title, annotation, tags } = request.body;
 
-      logger.debug('Content metadata update request', { id, title, annotation, tags });
+      // Get authenticated user for ownership verification
+      const user = getAuthenticatedUser(request);
 
-      // Check if content exists
-      const existingContent = db.getContentById(id);
+      logger.debug('Content metadata update request', { id, userId: user.id, title, annotation, tags });
+
+      // Check if content exists and user owns it
+      const existingContent = db.getContentById(id, user.id);
       if (!existingContent) {
-        logger.warn('Content not found for update', { id });
-        throw ApiErrors.notFound('Content not found');
+        logger.warn('Content not found or not owned by user', { id, userId: user.id });
+        throw ApiErrors.notFound('Content not found or not owned by user');
       }
 
       // Validate inputs
@@ -684,8 +691,8 @@ export async function registerContentRoutes(
       }
 
       try {
-        // Update content metadata in database
-        const updatedContent = db.updateContent(id, {
+        // Update content metadata in database with ownership verification
+        const updatedContent = db.updateContent(id, user.id, {
           title,
           annotation,
           tags,
@@ -764,8 +771,12 @@ export async function registerContentRoutes(
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { ids } = request.body as { ids: string[] };
 
+      // Get authenticated user for ownership verification
+      const user = getAuthenticatedUser(request);
+
       try {
         logger.info('Bulk delete request received', {
+          userId: user.id,
           count: ids.length,
           ...(process.env.NODE_ENV !== 'production' && { ids: ids.slice(0, 10) }),
         });
@@ -778,48 +789,42 @@ export async function registerContentRoutes(
         // Process each deletion
         for (const id of ids) {
           try {
-            // Get content metadata to find file path
-            const content = await db.getContentById(id);
+            // Verify ownership and get content metadata
+            const content = db.getContentById(id, user.id);
             if (!content) {
-              results.failed.push({ id, error: 'Content not found' });
+              results.failed.push({ id, error: 'Content not found or not owned by user' });
               continue;
             }
 
-            // Delete from filesystem
+            // Delete from filesystem (FileStorage handles files and thumbnails)
             try {
-              await fileStorage.deleteFile(content.file_path);
+              const deleteResult = await fileStorage.deleteFile(id, user.id);
+              if (!deleteResult.success) {
+                logger.warn('Failed to delete file', {
+                  id,
+                  userId: user.id,
+                  error: deleteResult.error,
+                });
+              }
             } catch (error) {
               logger.warn('Failed to delete file from filesystem', {
                 id,
-                file_path: content.file_path,
+                userId: user.id,
                 error,
               });
               // Continue with deletion even if file doesn't exist
-            }
-
-            // Delete thumbnail if it exists
-            if (content.thumbnail_path) {
-              try {
-                await fileStorage.deleteFile(content.thumbnail_path);
-              } catch (error) {
-                logger.warn('Failed to delete thumbnail', {
-                  id,
-                  thumbnail_path: content.thumbnail_path,
-                  error,
-                });
-              }
             }
 
             // Delete from vector store
             try {
               await vectorStore.deleteDocument(id);
             } catch (error) {
-              logger.warn('Failed to delete from vector store', { id, error });
+              logger.warn('Failed to delete from vector store', { id, userId: user.id, error });
               // Continue with deletion even if vector store fails
             }
 
-            // Delete from database
-            await db.deleteContent(id);
+            // Note: FileStorage.deleteFile() already handles database deletion
+            // So we don't need to call db.deleteContent() here
 
             results.successful.push(id);
             logger.info('Content deleted successfully in bulk operation', { id });
@@ -903,6 +908,9 @@ export async function registerContentRoutes(
         mode?: 'add' | 'replace';
       };
 
+      // Get authenticated user for ownership verification
+      const user = getAuthenticatedUser(request);
+
       try {
         // Validate tags format
         const tagRegex = /^[a-zA-Z0-9_-]+$/;
@@ -915,6 +923,7 @@ export async function registerContentRoutes(
         }
 
         logger.info('Bulk tag request received', {
+          userId: user.id,
           count: ids.length,
           tags,
           mode,
@@ -929,10 +938,10 @@ export async function registerContentRoutes(
         // Process each item
         for (const id of ids) {
           try {
-            // Get current content
-            const content = await db.getContentById(id);
+            // Verify ownership and get current content
+            const content = db.getContentById(id, user.id);
             if (!content) {
-              results.failed.push({ id, error: 'Content not found' });
+              results.failed.push({ id, error: 'Content not found or not owned by user' });
               continue;
             }
 
@@ -955,8 +964,12 @@ export async function registerContentRoutes(
               continue;
             }
 
-            // Update tags in database
-            await db.updateContentTags(id, newTags);
+            // Update tags in database with ownership verification
+            const updated = db.updateContentTags(id, user.id, newTags);
+            if (!updated) {
+              results.failed.push({ id, error: 'Failed to update tags' });
+              continue;
+            }
 
             results.successful.push(id);
             logger.info('Tags updated successfully in bulk operation', {

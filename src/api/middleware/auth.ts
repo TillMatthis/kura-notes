@@ -45,7 +45,7 @@ const STATIC_FILE_EXTENSIONS = [
  */
 export async function authMiddleware(
   request: FastifyRequest,
-  reply: FastifyReply
+  _reply: FastifyReply
 ): Promise<void> {
   // Skip authentication for public paths
   if (PUBLIC_PATHS.includes(request.url)) {

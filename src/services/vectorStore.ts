@@ -187,8 +187,11 @@ export class VectorStoreService {
 
   /**
    * Query documents by embedding vector
+   * @param embedding - The embedding vector to search with
+   * @param limit - Maximum number of results to return
+   * @param userId - Optional user ID to filter results (null for legacy content)
    */
-  async queryByEmbedding(embedding: number[], limit = 10): Promise<QueryResult[]> {
+  async queryByEmbedding(embedding: number[], limit = 10, userId: string | null = null): Promise<QueryResult[]> {
     try {
       if (!this.collection) {
         await this.initialize();
@@ -198,10 +201,18 @@ export class VectorStoreService {
         throw new Error('Collection not initialized');
       }
 
-      const results = await this.collection.query({
+      // Build query parameters
+      const queryParams: any = {
         queryEmbeddings: [embedding],
         nResults: limit,
-      });
+      };
+
+      // Add user filter if userId is provided
+      if (userId) {
+        queryParams.where = { user_id: userId };
+      }
+
+      const results = await this.collection.query(queryParams);
 
       // Transform ChromaDB results to our format
       const queryResults: QueryResult[] = [];
