@@ -19,7 +19,8 @@ import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger, responseLogger } from './middleware/requestLogger.js';
-import { authMiddleware } from './middleware/auth.js';
+import { authMiddleware, setKoauthGetUser } from './middleware/auth.js';
+import { initKOauth, getUser as koauthGetUser } from '../lib/koauth-stub.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerCaptureRoutes } from './routes/capture.js';
 import { registerContentRoutes } from './routes/content.js';
@@ -52,6 +53,27 @@ export async function createServer(): Promise<FastifyInstance> {
     bodyLimit: config.maxFileSize,
     trustProxy: true, // Trust proxy headers (X-Forwarded-For, etc.)
   });
+
+  // Initialize KOauth authentication
+  logger.info('Initializing KOauth authentication...', {
+    koauthUrl: config.koauthUrl,
+    timeout: config.koauthTimeout,
+  });
+
+  try {
+    await initKOauth(fastify, {
+      baseUrl: config.koauthUrl,
+      timeout: config.koauthTimeout,
+    });
+
+    // Set the KOauth getUser function in auth middleware
+    setKoauthGetUser(koauthGetUser);
+
+    logger.info('KOauth initialized successfully');
+  } catch (error) {
+    logger.error('Failed to initialize KOauth', { error });
+    throw new Error('KOauth initialization failed. Ensure auth.tillmaessen.de is accessible.');
+  }
 
   // Register plugins
   await registerPlugins(fastify);
