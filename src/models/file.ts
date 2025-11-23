@@ -31,6 +31,7 @@ export interface FileMetadata {
  * Options for saving a file
  */
 export interface SaveFileOptions {
+  userId: string; // KOauth user ID (required for multi-user support)
   content: Buffer | string;
   contentType: ContentType;
   title?: string;

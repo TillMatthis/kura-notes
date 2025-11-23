@@ -679,11 +679,12 @@ export class DatabaseService {
 
   /**
    * Get database statistics
+   * @param userId - Optional user ID to scope statistics to user's content (null for all content)
    */
-  public getStats() {
+  public getStats(userId: string | null = null) {
     return {
-      totalContent: this.getTotalContentCount(),
-      byType: this.getContentCountByType(),
+      totalContent: this.getTotalContentCount(userId),
+      byType: this.getContentCountByType(userId),
       schemaVersion: this.getSchemaVersion(),
       databasePath: this.dbPath,
     };

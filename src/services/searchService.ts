@@ -37,6 +37,7 @@ export interface SearchResult {
  */
 export interface SearchOptions {
   query: string;
+  userId?: string | null; // User ID for multi-user isolation (null for legacy content)
   limit?: number;
   useFallback?: boolean; // Whether to fall back to FTS if vector search fails
   combineResults?: boolean; // Whether to combine both vector and FTS results
@@ -67,12 +68,12 @@ export class SearchService {
    * Perform full-text search using SQLite FTS5
    * Returns results with snippets
    */
-  public async performFTSSearch(query: string, limit = 10): Promise<SearchResult[]> {
-    logger.debug('Performing FTS search', { query, limit });
+  public async performFTSSearch(query: string, userId: string | null = null, limit = 10): Promise<SearchResult[]> {
+    logger.debug('Performing FTS search', { query, userId, limit });
 
     try {
       // Search using the database service
-      const results = this.db.searchContent(query, limit);
+      const results = this.db.searchContent(query, userId, limit);
 
       logger.info('FTS search completed', {
         query,
@@ -93,8 +94,8 @@ export class SearchService {
   /**
    * Perform vector search using ChromaDB
    */
-  public async performVectorSearch(query: string, limit = 10): Promise<SearchResult[]> {
-    logger.debug('Performing vector search', { query, limit });
+  public async performVectorSearch(query: string, userId: string | null = null, limit = 10): Promise<SearchResult[]> {
+    logger.debug('Performing vector search', { query, userId, limit });
 
     try {
       // Check if embedding service is available
@@ -105,14 +106,16 @@ export class SearchService {
       // Generate embedding for query
       const embeddingResult = await this.embeddingService.generateEmbedding(query);
 
-      // Search vector store
+      // Search vector store with user filter
       const vectorResults = await this.vectorStore.queryByEmbedding(
         embeddingResult.embedding,
-        limit
+        limit,
+        userId
       );
 
       logger.info('Vector search completed', {
         query,
+        userId,
         resultsFound: vectorResults.length,
       });
 
@@ -120,11 +123,12 @@ export class SearchService {
       const searchResults: SearchResult[] = [];
 
       for (const vectorResult of vectorResults) {
-        const content = this.db.getContentById(vectorResult.id);
+        const content = this.db.getContentById(vectorResult.id, userId || undefined);
 
         if (!content) {
           logger.warn('Content found in vector store but not in database', {
             id: vectorResult.id,
+            userId,
           });
           continue;
         }
@@ -230,9 +234,9 @@ export class SearchService {
     searchMethod: 'vector' | 'fts' | 'combined';
     totalResults: number;
   }> {
-    const { query, limit = 10, useFallback = true, combineResults = false, filters } = options;
+    const { query, userId = null, limit = 10, useFallback = true, combineResults = false, filters } = options;
 
-    logger.debug('Unified search starting', { query, limit, useFallback, combineResults });
+    logger.debug('Unified search starting', { query, userId, limit, useFallback, combineResults });
 
     let vectorResults: SearchResult[] = [];
     let ftsResults: SearchResult[] = [];
@@ -240,7 +244,7 @@ export class SearchService {
 
     // Try vector search first
     try {
-      vectorResults = await this.performVectorSearch(query, limit);
+      vectorResults = await this.performVectorSearch(query, userId, limit);
 
       // If we have results and not combining, return vector results
       if (vectorResults.length > 0 && !combineResults) {
@@ -261,9 +265,9 @@ export class SearchService {
 
       // If combining, also run FTS
       if (combineResults) {
-        logger.debug('Running FTS search for combination', { query });
+        logger.debug('Running FTS search for combination', { query, userId });
         try {
-          ftsResults = await this.performFTSSearch(query, limit);
+          ftsResults = await this.performFTSSearch(query, userId, limit);
         } catch (ftsError) {
           logger.warn('FTS search failed during combination', {
             error: ftsError instanceof Error ? ftsError.message : 'Unknown error',
@@ -273,7 +277,7 @@ export class SearchService {
 
       // If no vector results but fallback enabled, try FTS
       if (vectorResults.length === 0 && useFallback) {
-        logger.info('Vector search returned no results, falling back to FTS', { query });
+        logger.info('Vector search returned no results, falling back to FTS', { query, userId });
         searchMethod = 'fts';
       }
     } catch (vectorError) {
@@ -282,6 +286,7 @@ export class SearchService {
         logger.warn('Vector search failed, falling back to FTS', {
           error: vectorError instanceof Error ? vectorError.message : 'Unknown error',
           query,
+          userId,
         });
         searchMethod = 'fts';
       } else {
@@ -292,7 +297,7 @@ export class SearchService {
 
     // If we need FTS results (fallback or no vector results)
     if (searchMethod === 'fts' && ftsResults.length === 0) {
-      ftsResults = await this.performFTSSearch(query, limit);
+      ftsResults = await this.performFTSSearch(query, userId, limit);
     }
 
     // Combine and deduplicate results if needed

@@ -36,7 +36,7 @@ const requestUserMap = new WeakMap<FastifyRequest, KOauthUser | null>();
  * For now, it just logs the configuration.
  */
 export async function initKOauth(
-  app: FastifyInstance,
+  _app: FastifyInstance,
   options: KOauthOptions
 ): Promise<void> {
   logger.info('KOauth stub initialized', {

@@ -165,6 +165,7 @@ export class FileStorageService {
   async saveFile(options: SaveFileOptions): Promise<SaveFileResult> {
     try {
       const {
+        userId,
         content,
         contentType,
         title,
@@ -280,6 +281,7 @@ export class FileStorageService {
       // Save metadata to database using existing Content interface
       const dbInput: CreateContentInput = {
         id,
+        user_id: userId, // KOauth user ID for multi-user support
         file_path: relativePath,
         content_type: contentType,
         title,
@@ -295,7 +297,7 @@ export class FileStorageService {
 
         // Then update with thumbnail and metadata if available
         if (thumbnailPath || imageMetadata || pdfMetadata) {
-          this.db.updateContent(id, {
+          this.db.updateContent(id, userId, {
             thumbnail_path: thumbnailPath,
             image_metadata: imageMetadata,
             pdf_metadata: pdfMetadata,
@@ -457,15 +459,17 @@ export class FileStorageService {
 
   /**
    * Delete file from storage
+   * @param id - Content ID to delete
+   * @param userId - User ID for ownership verification (null for legacy content)
    */
-  async deleteFile(id: string): Promise<DeleteFileResult> {
+  async deleteFile(id: string, userId: string | null = null): Promise<DeleteFileResult> {
     try {
-      // Get metadata from database
-      const contentRecord = this.db.getContentById(id);
+      // Get metadata from database with ownership verification
+      const contentRecord = this.db.getContentById(id, userId || undefined);
       if (!contentRecord) {
         return {
           success: false,
-          error: 'Content not found',
+          error: 'Content not found or not owned by user',
         };
       }
 
@@ -476,11 +480,13 @@ export class FileStorageService {
         await fsPromises.unlink(fullPath);
         this.logger.info('File deleted from disk', {
           id,
+          userId,
           path: contentRecord.file_path,
         });
       } else {
         this.logger.warn('File not found on disk during delete', {
           id,
+          userId,
           path: fullPath,
         });
       }
@@ -490,12 +496,13 @@ export class FileStorageService {
         await this.thumbnailService.deleteThumbnail(contentRecord.thumbnail_path);
         this.logger.info('Thumbnail deleted from disk', {
           id,
+          userId,
           thumbnailPath: contentRecord.thumbnail_path,
         });
       }
 
-      // Delete metadata from database
-      const deleted = this.db.deleteContent(id);
+      // Delete metadata from database with ownership verification
+      const deleted = this.db.deleteContent(id, userId);
       if (!deleted) {
         return {
           success: false,
