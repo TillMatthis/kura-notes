@@ -33,6 +33,7 @@
     "chromadb": "^1.7.3",
     "dotenv": "^16.3.1",
     "fastify": "^4.25.2",
+    "koauth": "github:TillMatthis/KOauth#main",
     "openai": "^4.24.1",
     "pdf-parse": "^2.4.5",
     "sharp": "^0.34.5",
