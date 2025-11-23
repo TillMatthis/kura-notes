@@ -18,7 +18,11 @@ export interface Config {
   // Application
   nodeEnv: 'development' | 'production' | 'test';
   apiPort: number;
-  apiKey: string;
+  apiKey: string; // Deprecated - kept for backward compatibility
+
+  // KOauth Authentication
+  koauthUrl: string;
+  koauthTimeout: number;
 
   // Database
   databaseUrl: string;
@@ -112,6 +116,10 @@ export function loadConfig(): Config {
     apiPort: getEnvInt('API_PORT', 3000),
     apiKey: getEnv('API_KEY', 'dev-api-key-change-in-production'),
 
+    // KOauth Authentication
+    koauthUrl: getEnv('KOAUTH_URL', 'https://auth.tillmaessen.de'),
+    koauthTimeout: getEnvInt('KOAUTH_TIMEOUT', 5000),
+
     // Database
     databaseUrl: normalizeDatabasePath(
       getEnv('DATABASE_URL', './data/metadata/knowledge.db')
@@ -182,6 +190,12 @@ function validateConfig(config: Config): void {
   const warnings: string[] = [];
 
   // Validate required fields (always required)
+  if (!config.koauthUrl) {
+    errors.push('KOAUTH_URL is required');
+  } else if (!isValidUrl(config.koauthUrl)) {
+    errors.push(`KOAUTH_URL must be a valid HTTP/HTTPS URL (got: ${config.koauthUrl})`);
+  }
+
   if (!config.vectorStoreUrl) {
     errors.push('VECTOR_STORE_URL is required');
   } else if (!isValidUrl(config.vectorStoreUrl)) {
@@ -191,6 +205,11 @@ function validateConfig(config: Config): void {
   // Validate port
   if (!isValidPort(config.apiPort)) {
     errors.push(`API_PORT must be a valid port number 1-65535 (got: ${config.apiPort})`);
+  }
+
+  // Validate KOauth timeout
+  if (config.koauthTimeout <= 0) {
+    errors.push(`KOAUTH_TIMEOUT must be a positive integer (got: ${config.koauthTimeout})`);
   }
 
   // Validate log level
@@ -265,7 +284,9 @@ export function printConfig(config: Config): void {
   const safeToPrint = {
     nodeEnv: config.nodeEnv,
     apiPort: config.apiPort,
-    apiKey: maskSecret(config.apiKey),
+    apiKey: maskSecret(config.apiKey) + ' (deprecated)',
+    koauthUrl: config.koauthUrl,
+    koauthTimeout: `${config.koauthTimeout}ms`,
     databaseUrl: config.databaseUrl,
     vectorStoreUrl: config.vectorStoreUrl,
     vectorDbKey: maskSecret(config.vectorDbKey),

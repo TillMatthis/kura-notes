@@ -17,6 +17,7 @@ PRAGMA foreign_keys = ON;
 -- Stores metadata about all captured content (notes, images, PDFs, etc.)
 CREATE TABLE IF NOT EXISTS content (
   id TEXT PRIMARY KEY,                  -- UUID v4
+  user_id TEXT,                         -- KOauth user ID (UUID) - NULL for legacy content
   file_path TEXT NOT NULL,              -- Path to file in storage (relative)
   content_type TEXT NOT NULL,           -- 'text' | 'image' | 'pdf' | 'audio'
   title TEXT,                           -- User-provided or auto-generated title
@@ -35,6 +36,7 @@ CREATE TABLE IF NOT EXISTS content (
 -- =============================================================================
 -- Indexes for Performance
 -- =============================================================================
+CREATE INDEX IF NOT EXISTS idx_user_id ON content(user_id);
 CREATE INDEX IF NOT EXISTS idx_content_type ON content(content_type);
 CREATE INDEX IF NOT EXISTS idx_created_at ON content(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_updated_at ON content(updated_at DESC);
@@ -114,3 +116,6 @@ VALUES (3, 'Add thumbnail support and image metadata fields');
 
 INSERT OR IGNORE INTO schema_version (version, description)
 VALUES (4, 'Add pdf_metadata field for PDF file information');
+
+INSERT OR IGNORE INTO schema_version (version, description)
+VALUES (5, 'Add user_id column for multi-user support');
