@@ -1,31 +1,51 @@
 /**
  * KURA Notes - Authentication Middleware
  *
- * API key-based authentication for securing endpoints
+ * OAuth-based authentication using KOauth
+ * Replaces the previous API key authentication system
  */
 
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { ApiErrors } from '../types/errors.js';
+
+// KOauth will be initialized in server.ts and provide these functions
+// Import will be added after KOauth initialization
+let koauthGetUser: ((request: FastifyRequest) => { id: string; email: string; sessionId?: string } | null) | null = null;
+
+/**
+ * Set KOauth getUser function
+ * Called from server.ts after KOauth initialization
+ */
+export function setKoauthGetUser(getUserFn: (request: FastifyRequest) => { id: string; email: string; sessionId?: string } | null) {
+  koauthGetUser = getUserFn;
+}
 
 /**
  * List of paths that don't require authentication
  */
-const PUBLIC_PATHS = ['/api/health', '/health'];
+const PUBLIC_PATHS = [
+  '/api/health',
+  '/health',
+  '/api/me',           // User profile endpoint (will check auth internally)
+  '/api/logout',       // Logout endpoint
+];
 
 /**
  * Static file extensions that don't require authentication
  */
-const STATIC_FILE_EXTENSIONS = ['.html', '.css', '.js', '.ico', '.png', '.jpg', '.jpeg', '.svg', '.woff', '.woff2', '.ttf', '.eot'];
+const STATIC_FILE_EXTENSIONS = [
+  '.html', '.css', '.js', '.ico', '.png', '.jpg', '.jpeg', '.svg',
+  '.woff', '.woff2', '.ttf', '.eot', '.json', '.map'
+];
 
 /**
- * Authentication middleware
- * Checks for valid API key in Authorization header
+ * Authentication middleware using KOauth
+ * Validates JWT tokens, API keys, or session cookies
  */
 export async function authMiddleware(
   request: FastifyRequest,
-  _reply: FastifyReply
+  reply: FastifyReply
 ): Promise<void> {
   // Skip authentication for public paths
   if (PUBLIC_PATHS.includes(request.url)) {
@@ -38,80 +58,70 @@ export async function authMiddleware(
     return;
   }
 
-  // Get API key from Authorization header
-  const authHeader = request.headers.authorization;
+  // Skip authentication for auth-related routes
+  if (urlPath.startsWith('/auth')) {
+    return;
+  }
 
-  if (!authHeader) {
-    logger.warn('Missing API key', {
+  // Check if KOauth is initialized
+  if (!koauthGetUser) {
+    logger.error('KOauth not initialized - authentication unavailable');
+    throw ApiErrors.unauthorized('Authentication system not initialized');
+  }
+
+  // Get user from KOauth (handles sessions, API keys, and JWT tokens)
+  const user = koauthGetUser(request);
+
+  if (!user) {
+    logger.warn('Authentication failed - no valid credentials', {
       method: request.method,
       url: request.url,
       ip: request.ip,
     });
-    throw ApiErrors.missingApiKey();
+    throw ApiErrors.unauthorized('Authentication required');
   }
 
-  // Extract API key from Bearer token or direct value
-  let apiKey: string;
-
-  if (authHeader.startsWith('Bearer ')) {
-    apiKey = authHeader.substring(7);
-  } else {
-    apiKey = authHeader;
-  }
-
-  // Validate API key
-  if (apiKey !== config.apiKey) {
-    logger.warn('Invalid API key attempt', {
-      method: request.method,
-      url: request.url,
-      ip: request.ip,
-    });
-    throw ApiErrors.invalidApiKey();
-  }
-
-  // Authentication successful
+  // Authentication successful - user is attached to request by KOauth
   logger.debug('Authentication successful', {
     method: request.method,
     url: request.url,
+    userId: user.id,
+    email: user.email,
   });
 }
 
 /**
- * Optional authentication middleware
- * Validates API key if present, but doesn't require it
- * Useful for endpoints that have different behavior for authenticated vs unauthenticated requests
+ * Get authenticated user from request
+ * Helper function for routes to extract user information
+ * @throws ApiError if user is not authenticated
  */
-export async function optionalAuthMiddleware(
-  request: FastifyRequest,
-  _reply: FastifyReply
-): Promise<void> {
-  const authHeader = request.headers.authorization;
-
-  if (!authHeader) {
-    // No authentication provided, continue without auth
-    return;
+export function getAuthenticatedUser(request: FastifyRequest): { id: string; email: string; sessionId?: string } {
+  if (!koauthGetUser) {
+    logger.error('KOauth not initialized');
+    throw ApiErrors.unauthorized('Authentication system not initialized');
   }
 
-  // If auth is provided, validate it
-  let apiKey: string;
+  const user = koauthGetUser(request);
 
-  if (authHeader.startsWith('Bearer ')) {
-    apiKey = authHeader.substring(7);
-  } else {
-    apiKey = authHeader;
-  }
-
-  if (apiKey !== config.apiKey) {
-    logger.warn('Invalid API key in optional auth', {
+  if (!user) {
+    logger.warn('User not authenticated', {
       method: request.method,
       url: request.url,
-      ip: request.ip,
     });
-    throw ApiErrors.invalidApiKey();
+    throw ApiErrors.unauthorized('Authentication required');
   }
 
-  logger.debug('Optional authentication successful', {
-    method: request.method,
-    url: request.url,
-  });
+  return user;
+}
+
+/**
+ * Get optional authenticated user from request
+ * Returns null if not authenticated (for endpoints that work with/without auth)
+ */
+export function getOptionalUser(request: FastifyRequest): { id: string; email: string; sessionId?: string } | null {
+  if (!koauthGetUser) {
+    return null;
+  }
+
+  return koauthGetUser(request);
 }
