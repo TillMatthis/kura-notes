@@ -1994,13 +1994,13 @@
   - [ ] Migrate existing single-user data
   - [ ] Generate API keys for existing users
 
-- [ ] **Documentation (Step 6 - In Progress)**
-  - [ ] Update BUILD-CHECKLIST.md with progress
-  - [ ] Update technical-architecture.md with multi-user design
-  - [ ] Update README.md with authentication section
-  - [ ] Update API-DOCS.md (JWT auth, not API key)
-  - [ ] Document OAuth provider setup
-  - [ ] Document data migration procedure
+- [x] **Documentation (Step 6 - Complete)**
+  - [x] Update BUILD-CHECKLIST.md with progress
+  - [x] Update technical-architecture.md with multi-user design
+  - [x] Update README.md with authentication section
+  - [x] Update API-DOCS.md (JWT auth, not API key)
+  - [ ] Document OAuth provider setup (deferred to infrastructure step)
+  - [ ] Document data migration procedure (deferred to testing step)
 
 **Acceptance Criteria:**
 - [x] KOauth stub created for development
@@ -2012,7 +2012,7 @@
 - [ ] iOS Shortcut works with JWT token (testing step)
 - [ ] Claude Desktop MCP authenticated (testing step)
 - [x] Backend fully multi-user ready
-- [ ] Documentation updated (in progress)
+- [x] Documentation updated (backend complete)
 - [x] No TypeScript compilation errors
 
 **Completion Date:** Backend Complete 2025-11-24, Full Integration: _________
