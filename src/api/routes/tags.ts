@@ -13,7 +13,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { TagService } from '../../services/tagService.js';
 import { logger } from '../../utils/logger.js';
 import { ApiErrors } from '../types/errors.js';
-import { getOptionalUser } from '../middleware/auth.js';
+import { getAuthenticatedUser, getOptionalUser } from '../middleware/auth.js';
 
 /**
  * Register tag routes
@@ -69,14 +69,18 @@ export async function registerTagRoutes(
       reply: FastifyReply
     ) => {
       try {
+        // Get authenticated user
+        const user = getAuthenticatedUser(request);
+
         logger.debug('GET /api/tags request received', {
+          userId: user.id,
           limit: request.query.limit,
         });
 
         const limit = request.query.limit || 100;
 
-        // Get all tags
-        const allTags = tagService.getAllTags();
+        // Get all tags scoped to user
+        const allTags = tagService.getAllTags(user.id);
         const limitedTags = allTags.slice(0, limit);
 
         reply.code(200).send({
@@ -85,6 +89,12 @@ export async function registerTagRoutes(
         });
       } catch (error) {
         logger.error('Failed to get tags', { error });
+
+        // Re-throw ApiErrors (including authentication errors)
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
         throw ApiErrors.internalError(
           error instanceof Error ? error.message : 'Failed to get tags'
         );
@@ -228,10 +238,14 @@ export async function registerTagRoutes(
       reply: FastifyReply
     ) => {
       try {
+        // Get authenticated user
+        const user = getAuthenticatedUser(request);
+
         const oldTag = decodeURIComponent(request.params.tagName);
         const { newTag } = request.body;
 
         logger.info('PATCH /api/tags/:tagName/rename request received', {
+          userId: user.id,
           oldTag,
           newTag,
         });
@@ -241,8 +255,8 @@ export async function registerTagRoutes(
           throw ApiErrors.validationError('New tag name is required');
         }
 
-        // Rename tag
-        const updatedCount = tagService.renameTag(oldTag, newTag);
+        // Rename tag (scoped to user's content)
+        const updatedCount = tagService.renameTag(oldTag, newTag, user.id);
 
         reply.code(200).send({
           success: true,
@@ -310,9 +324,13 @@ export async function registerTagRoutes(
       reply: FastifyReply
     ) => {
       try {
+        // Get authenticated user
+        const user = getAuthenticatedUser(request);
+
         const { sourceTags, targetTag } = request.body;
 
         logger.info('POST /api/tags/merge request received', {
+          userId: user.id,
           sourceTags,
           targetTag,
         });
@@ -327,8 +345,8 @@ export async function registerTagRoutes(
           throw ApiErrors.validationError('Target tag name is required');
         }
 
-        // Merge tags
-        const updatedCount = tagService.mergeTags(sourceTags, targetTag);
+        // Merge tags (scoped to user's content)
+        const updatedCount = tagService.mergeTags(sourceTags, targetTag, user.id);
 
         reply.code(200).send({
           success: true,
@@ -387,12 +405,18 @@ export async function registerTagRoutes(
       reply: FastifyReply
     ) => {
       try {
+        // Get authenticated user
+        const user = getAuthenticatedUser(request);
+
         const tag = decodeURIComponent(request.params.tagName);
 
-        logger.info('DELETE /api/tags/:tagName request received', { tag });
+        logger.info('DELETE /api/tags/:tagName request received', {
+          userId: user.id,
+          tag,
+        });
 
-        // Delete tag
-        const deletedCount = tagService.deleteTag(tag);
+        // Delete tag (scoped to user's content)
+        const deletedCount = tagService.deleteTag(tag, user.id);
 
         reply.code(200).send({
           success: true,
@@ -401,6 +425,12 @@ export async function registerTagRoutes(
         });
       } catch (error) {
         logger.error('Failed to delete tag', { error });
+
+        // Re-throw ApiErrors (including authentication errors)
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          throw error;
+        }
+
         throw ApiErrors.internalError(
           error instanceof Error ? error.message : 'Failed to delete tag'
         );

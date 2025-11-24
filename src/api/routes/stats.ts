@@ -9,22 +9,27 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { getStatsService } from '../../services/statsService.js';
 import { logger } from '../../utils/logger.js';
 import { ApiErrors } from '../types/errors.js';
+import { getAuthenticatedUser } from '../middleware/auth.js';
 
 /**
  * Stats handler
- * Returns cached statistics (refreshed every 5 minutes)
+ * Returns cached statistics (refreshed every 5 minutes) scoped to authenticated user
  */
 async function statsHandler(
-  _request: FastifyRequest,
+  request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
   logger.debug('Stats endpoint requested');
 
   try {
+    // Get authenticated user
+    const user = getAuthenticatedUser(request);
+
     const statsService = getStatsService();
-    const stats = statsService.getStats();
+    const stats = statsService.getStats(user.id);
 
     logger.debug('Stats retrieved successfully', {
+      userId: user.id,
       totalItems: stats.totalItems,
       lastUpdated: stats.lastUpdated,
     });
@@ -35,6 +40,11 @@ async function statsHandler(
     });
   } catch (error) {
     logger.error('Failed to retrieve stats', { error });
+
+    // Re-throw ApiErrors (including authentication errors)
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      throw error;
+    }
 
     // Let the centralized error handler deal with it
     throw ApiErrors.internalError(
