@@ -22,6 +22,7 @@ import { requestLogger, responseLogger } from './middleware/requestLogger.js';
 import { authMiddleware, setKoauthGetUser } from './middleware/auth.js';
 import { initKOauth, getUser as koauthGetUser } from '../lib/koauth-stub.js';
 import { registerHealthRoutes } from './routes/health.js';
+import { registerAuthRoutes } from './routes/auth.js';
 import { registerCaptureRoutes } from './routes/capture.js';
 import { registerContentRoutes } from './routes/content.js';
 import { registerSearchRoutes } from './routes/search.js';
@@ -212,6 +213,9 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
 
   // Health check routes
   await registerHealthRoutes(fastify);
+
+  // Authentication routes (Task 4.7)
+  await registerAuthRoutes(fastify);
 
   // Content capture routes (Task 1.7 + Task 2.3)
   await registerCaptureRoutes(fastify, fileStorage, embeddingPipeline);
