@@ -1976,13 +1976,13 @@
   - [x] Add /api/logout - **Step 5**
   - [ ] Update MCP routes with authentication (deferred)
 
-- [ ] **Frontend Updates (Step 6)**
-  - [ ] Create public/auth/login.html page
-  - [ ] Add user menu/logout button
-  - [ ] Remove localStorage API key code
-  - [ ] Update all fetch() calls (rely on cookies)
-  - [ ] Handle 401 redirects to login
-  - [ ] Add authentication check on page load
+- [x] **Frontend Updates (Step 6)** - **COMPLETED 2025-11-24**
+  - [x] Create public/auth/login.html page
+  - [x] Add user menu/logout button to all HTML files
+  - [x] Remove localStorage API key code from main.js
+  - [x] Update all fetch() calls to use credentials: 'include' (rely on cookies)
+  - [x] Handle 401 redirects to login (checkAuth in main.js)
+  - [x] Add authentication check on page load (loadUser on init)
 
 - [ ] **Testing & Migration (Step 7)**
   - [ ] Test signup/login flow
@@ -2015,7 +2015,7 @@
 - [x] Documentation updated (backend complete)
 - [x] No TypeScript compilation errors
 
-**Completion Date:** Backend Complete 2025-11-24, Full Integration: _________
+**Completion Date:** Backend Complete 2025-11-24, Frontend Complete 2025-11-24, Full Integration: Testing Pending
 
 **Notes:**
 - Breaking change: Requires data migration
