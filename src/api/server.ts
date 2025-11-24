@@ -19,7 +19,7 @@ import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger, responseLogger } from './middleware/requestLogger.js';
-import { authMiddleware, setKoauthGetUser } from './middleware/auth.js';
+import { authMiddleware, setKoauthGetUser, getOptionalUser } from './middleware/auth.js';
 import { initKOauth, getUser as koauthGetUser } from '../lib/koauth-stub.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerAuthRoutes } from './routes/auth.js';
@@ -210,6 +210,17 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
     vectorStore,
     db
   );
+
+  // Root route - redirect to login if not authenticated
+  fastify.get('/', async (request, reply) => {
+    const user = getOptionalUser(request);
+
+    if (!user) {
+      return reply.redirect('/auth/login.html');
+    }
+
+    return reply.sendFile('index.html');
+  });
 
   // Health check routes
   await registerHealthRoutes(fastify);

@@ -133,6 +133,33 @@ body {
   font-weight: 500;
 }
 
+/* User Menu */
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-email {
+  color: #666;
+  font-size: 14px;
+}
+
+.logout-button {
+  padding: 8px 16px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.logout-button:hover {
+  background: #5568d3;
+}
+
 /* Main Content */
 .main {
   min-height: calc(100vh - 200px);
