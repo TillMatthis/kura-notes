@@ -2,22 +2,66 @@
 
 **Version:** 0.1.0 (MVP)
 **Base URL:** `https://kura.tillmaessen.de`
-**Authentication:** Bearer Token
+**Authentication:** JWT (KOauth) / API Keys
 
 ---
 
 ## Authentication
 
-All API requests require authentication using a Bearer token in the `Authorization` header.
+KURA Notes uses **KOauth** for multi-user authentication. All API requests must be authenticated.
+
+### Web/Browser Access
+
+Authentication handled automatically via HTTP-only cookies after logging in through KOauth.
+
+**Login Flow:**
+1. Navigate to `https://kura.tillmaessen.de` (redirects to login if not authenticated)
+2. Log in via OAuth (Google, GitHub) or email/password
+3. JWT token stored in secure HTTP-only cookie
+4. All API requests automatically authenticated
+
+**No manual headers required** - cookies sent automatically by browser.
+
+### API/Programmatic Access
+
+For scripts, iOS Shortcuts, or programmatic access, use **API keys**.
+
+**Get your API key:**
+1. Log in to KURA Notes web interface
+2. Navigate to Settings > API Keys
+3. Generate new API key
+4. Copy and store securely
 
 **Header Format:**
 ```
 Authorization: Bearer YOUR_API_KEY
 ```
 
-**Get your API key:**
-- Set during deployment in `.env` file as `API_KEY`
-- For web UI: Set in browser console with `localStorage.setItem('apiKey', 'YOUR_API_KEY')`
+**Example:**
+```bash
+curl https://kura.tillmaessen.de/api/me \
+  -H "Authorization: Bearer koauth_ak_1234567890abcdef"
+```
+
+### Development Mode
+
+For local development without KOauth server, use test headers:
+
+```bash
+curl http://localhost:3000/api/me \
+  -H "X-Test-User-ID: user-1" \
+  -H "X-Test-User-Email: user1@test.local"
+```
+
+The development stub will create a test user with the specified ID and email.
+
+### User Isolation
+
+All content is automatically scoped to the authenticated user:
+- Each user only sees their own content
+- Database queries filter by `user_id`
+- Vector search includes user metadata filters
+- Ownership verified on all mutations (update/delete)
 
 ---
 
@@ -49,6 +93,65 @@ Check if the API is running and healthy.
 curl https://kura.tillmaessen.de/api/health \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
+
+---
+
+### Get Current User
+
+**GET** `/api/me`
+
+Get the current authenticated user's profile information.
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "user@example.com",
+  "sessionId": "session_abc123"
+}
+```
+
+**Example:**
+```bash
+curl https://kura.tillmaessen.de/api/me \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+**Use Cases:**
+- Verify authentication status
+- Get user ID for client-side operations
+- Display user info in UI
+
+---
+
+### Logout
+
+**POST** `/api/logout`
+
+Logout the current user and invalidate their session.
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Logged out successfully. Please redirect to KOauth logout endpoint to complete logout."
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://kura.tillmaessen.de/api/logout \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+**Notes:**
+- For complete logout, redirect user to KOauth logout: `https://auth.tillmaessen.de/logout`
+- Clears session on KURA Notes side
+- KOauth handles OAuth provider session termination
 
 ---
 
