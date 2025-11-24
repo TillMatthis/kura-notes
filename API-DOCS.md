@@ -73,7 +73,7 @@ All content is automatically scoped to the authenticated user:
 
 Check if the API is running and healthy.
 
-**Authentication:** Required
+**Authentication:** Not Required (Public endpoint)
 
 **Response:**
 ```json
@@ -90,8 +90,8 @@ Check if the API is running and healthy.
 
 **Example:**
 ```bash
-curl https://kura.tillmaessen.de/api/health \
-  -H "Authorization: Bearer YOUR_API_KEY"
+# No authentication required
+curl https://kura.tillmaessen.de/api/health
 ```
 
 ---
@@ -365,8 +365,8 @@ All errors follow this format:
 
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
-| `MISSING_API_KEY` | 401 | Authorization header missing |
-| `INVALID_API_KEY` | 401 | API key is incorrect |
+| `UNAUTHORIZED` | 401 | Authentication required (no session or invalid API key) |
+| `FORBIDDEN` | 403 | Insufficient permissions to access resource |
 | `INVALID_REQUEST` | 400 | Request body validation failed |
 | `NOT_FOUND` | 404 | Resource not found |
 | `INTERNAL_ERROR` | 500 | Server error occurred |
@@ -377,8 +377,8 @@ All errors follow this format:
 ```json
 {
   "error": "ApiError",
-  "code": "MISSING_API_KEY",
-  "message": "API key is required",
+  "code": "UNAUTHORIZED",
+  "message": "Authentication required",
   "timestamp": "2025-11-19T10:30:00.000Z",
   "path": "/api/capture"
 }
