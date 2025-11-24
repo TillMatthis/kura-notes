@@ -5,51 +5,72 @@
 
 // API Configuration
 const API_BASE_URL = window.location.origin;
-const API_KEY = localStorage.getItem('kura_api_key') || '';
 
 /**
- * Set API key in localStorage
+ * Check if user is authenticated
  */
-function setApiKey(apiKey) {
-  localStorage.setItem('kura_api_key', apiKey);
-  window.location.reload();
+async function checkAuth() {
+  try {
+    const response = await fetch('/api/me', {
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      // Not authenticated, redirect to login
+      window.location.href = '/auth/login.html';
+      return null;
+    }
+
+    const data = await response.json();
+    return data.user;
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    window.location.href = '/auth/login.html';
+    return null;
+  }
 }
 
 /**
- * Check if API key is configured
+ * Load user profile and show in menu
  */
-function checkApiKey() {
-  if (!API_KEY) {
-    const message = document.createElement('div');
-    message.className = 'message message-error';
-    message.innerHTML = `
-      <strong>API Key Required</strong>
-      <p>Please set your API key to use KURA Notes.</p>
-      <p>You can set it in your browser console: <code>setApiKey('your-api-key')</code></p>
-    `;
+async function loadUser() {
+  const user = await checkAuth();
+  if (!user) return;
 
-    const main = document.querySelector('.main');
-    if (main) {
-      main.insertBefore(message, main.firstChild);
-    }
+  // Show user menu
+  const userMenu = document.getElementById('user-menu');
+  const userEmail = document.getElementById('user-email');
 
-    return false;
+  if (userMenu && userEmail) {
+    userEmail.textContent = user.email;
+    userMenu.style.display = 'flex';
   }
-  return true;
+}
+
+/**
+ * Logout user
+ */
+async function logout() {
+  try {
+    await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch (error) {
+    console.error('Logout failed:', error);
+  }
+
+  // Always redirect to login, even if API call fails
+  window.location.href = '/auth/login.html';
 }
 
 /**
  * Make API request with authentication
  */
 async function apiRequest(endpoint, options = {}) {
-  const headers = {
-    'Authorization': `Bearer ${API_KEY}`,
-    ...options.headers,
-  };
-
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
-    headers,
+    credentials: 'include',
   });
 
   if (!response.ok) {
@@ -443,8 +464,13 @@ function init() {
   // Initialize offline indicator
   OfflineIndicator.init();
 
-  // Expose setApiKey function globally for console access
-  window.setApiKey = setApiKey;
+  // Load user profile (skip on login page)
+  if (!window.location.pathname.includes('/auth/login')) {
+    loadUser();
+  }
+
+  // Expose logout function globally
+  window.logout = logout;
 }
 
 // Initialize when DOM is ready
