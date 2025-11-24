@@ -9,6 +9,7 @@ KURA Notes is a lightweight, self-hosted knowledge management system that helps 
 - 📝 **Multi-format Content Capture**: Text notes, images, and PDFs
 - 🔍 **Semantic Search**: Natural language queries with vector similarity search
 - 🏷️ **Tagging System**: Organize content with flexible tags
+- 👥 **Multi-User Support**: User isolation with KOauth authentication
 - 📱 **iOS Integration**: Quick capture via iOS Shortcuts
 - 🌐 **Web Interface**: Simple, functional web UI for browsing and searching
 - 🔒 **Self-Hosted**: Your data stays on your infrastructure
@@ -79,11 +80,13 @@ cp .env.example .env
 Edit `.env` and set the required values:
 
 ```bash
-# Generate a secure API key
-API_KEY=$(openssl rand -hex 32)
+# KOauth Authentication Service URL (required for multi-user support)
+KOAUTH_URL=https://auth.tillmaessen.de
 
 # Add your OpenAI API key
 OPENAI_API_KEY=sk-your-actual-api-key-here
+
+# Note: For development without KOauth, the stub will provide a default dev user
 ```
 
 ### 4. Start ChromaDB (Vector Store)
@@ -173,8 +176,8 @@ cp .env.example .env
 2. **Edit `.env` with your configuration:**
 
 ```bash
-# Required: Set a secure API key
-API_KEY=$(openssl rand -hex 32)
+# Required: KOauth authentication service URL
+KOAUTH_URL=https://auth.tillmaessen.de
 
 # Required: Add your OpenAI API key
 OPENAI_API_KEY=sk-your-actual-api-key-here
@@ -221,7 +224,7 @@ For local development with hot reload:
 # Copy environment file
 cp .env.example .env
 
-# Edit .env with your keys (API_KEY and OPENAI_API_KEY)
+# Edit .env with required values (KOAUTH_URL and OPENAI_API_KEY)
 
 # Start development containers
 docker-compose -f docker-compose.dev.yml up
@@ -339,7 +342,7 @@ All configuration is managed through environment variables. See `.env.example` f
 
 ### Required Variables
 
-- `API_KEY` - API authentication key
+- `KOAUTH_URL` - KOauth authentication service URL (e.g., `https://auth.tillmaessen.de`)
 - `OPENAI_API_KEY` - OpenAI API key for embeddings
 - `DATABASE_URL` - SQLite database path
 - `VECTOR_STORE_URL` - ChromaDB endpoint URL
@@ -350,6 +353,24 @@ All configuration is managed through environment variables. See `.env.example` f
 - `API_PORT` - API server port (default: 3000)
 - `LOG_LEVEL` - Logging level (error/warn/info/debug)
 - `MAX_FILE_SIZE` - Maximum upload size in bytes (default: 50MB)
+- `KOAUTH_TIMEOUT` - KOauth request timeout in milliseconds (default: 5000)
+
+### Authentication
+
+KURA Notes uses **KOauth** for multi-user authentication:
+
+- **Web Access**: Users log in via browser (OAuth providers: Google, GitHub)
+- **API Access**: JWT tokens in HTTP-only cookies
+- **iOS Shortcuts**: API keys generated via KOauth dashboard
+- **Development**: KOauth stub provides default dev user
+
+**User Isolation:**
+- All content is scoped to user_id
+- Database queries filter by user
+- Vector search includes user metadata filters
+- Ownership verified on all mutations
+
+For detailed authentication architecture, see `technical-architecture.md`.
 
 ## Testing
 
