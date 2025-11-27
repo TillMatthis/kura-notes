@@ -121,8 +121,8 @@ export function getUser(request: FastifyRequest): KOauthUser | null {
 
       // Decode payload (base64url)
       const payload = JSON.parse(
-        Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
-      );
+        Buffer.from(parts[1]!.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
+      ) as { userId?: string; sub?: string; id?: string; email?: string; sid?: string; sessionId?: string };
 
       // Extract user info from JWT payload
       const user: KOauthUser = {
@@ -148,7 +148,7 @@ export function getUser(request: FastifyRequest): KOauthUser | null {
 
     // For API keys in Authorization header
     if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
+      const _token = authHeader.substring(7);
 
       // API keys need to be validated with KOauth
       // This would require an async call, so for now we log a warning
@@ -157,7 +157,7 @@ export function getUser(request: FastifyRequest): KOauthUser | null {
       });
 
       // TODO: Implement async API key validation with KOauth
-      // const user = await validateApiKey(token);
+      // const user = await _validateApiKey(_token);
 
       requestUserMap.set(request, null);
       return null;
@@ -198,8 +198,10 @@ export function protectRoute() {
 /**
  * Validate API key with KOauth service (async)
  * For programmatic access (iOS Shortcuts, scripts)
+ * Currently unused but reserved for future implementation
  */
-async function validateApiKey(apiKey: string): Promise<KOauthUser | null> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function _validateApiKey(apiKey: string): Promise<KOauthUser | null> {
   if (!koauthConfig) {
     logger.error('KOauth not initialized');
     return null;
@@ -220,7 +222,7 @@ async function validateApiKey(apiKey: string): Promise<KOauthUser | null> {
       return null;
     }
 
-    const data = await response.json();
+    const data = await response.json() as { userId: string; email: string };
     return {
       id: data.userId,
       email: data.email,
