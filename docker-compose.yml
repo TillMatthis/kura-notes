@@ -4,6 +4,8 @@ services:
   # ============================================
   # API Service (Fastify Backend)
   # ============================================
+  # Note: KOauth is deployed externally at auth.tillmaessen.de
+  # ============================================
   api:
     build:
       context: .
@@ -20,6 +22,8 @@ services:
       - DATABASE_URL=/data/metadata/knowledge.db
       - VECTOR_STORE_URL=http://vectordb:8000
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - KOAUTH_URL=${KOAUTH_URL:-https://auth.tillmaessen.de}
+      - KOAUTH_TIMEOUT=${KOAUTH_TIMEOUT:-5000}
     volumes:
       - ./data:/data
     depends_on:
