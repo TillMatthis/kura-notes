@@ -3,6 +3,9 @@
 # ============================================
 FROM node:20-alpine AS builder
 
+# Install git (required for GitHub dependencies)
+RUN apk add --no-cache git
+
 # Set working directory
 WORKDIR /app
 
@@ -24,8 +27,8 @@ RUN npm run build
 # ============================================
 FROM node:20-alpine AS runtime
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init and git (git required for GitHub dependencies)
+RUN apk add --no-cache dumb-init git
 
 # Set working directory
 WORKDIR /app
