@@ -24,6 +24,9 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - KOAUTH_URL=${KOAUTH_URL:-https://auth.tillmaessen.de}
       - KOAUTH_TIMEOUT=${KOAUTH_TIMEOUT:-5000}
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
+      - OAUTH_REDIRECT_URI=${OAUTH_REDIRECT_URI}
     volumes:
       - ./data:/data
     depends_on:
