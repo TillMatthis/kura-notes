@@ -96,7 +96,7 @@
   </div>
 
   <script>
-    // Try OAuth 2.0 login
+    // Try OAuth 2.0 first, fallback to legacy login if not configured
     const loginBtn = document.getElementById('login-btn');
     const loginInfo = document.getElementById('login-info');
 
@@ -112,24 +112,18 @@
         });
 
         if (response.status === 503) {
-          // OAuth not configured
-          console.error('OAuth not configured');
-          loginInfo.innerHTML = '<strong style="color: #d32f2f;">Authentication Not Configured</strong><br>OAuth 2.0 is not set up. Please contact your administrator to configure OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, and OAUTH_REDIRECT_URI environment variables.';
-          loginBtn.disabled = false;
-          loginBtn.textContent = 'Login with KOauth';
-        } else if (response.type === 'opaqueredirect' || response.status === 302 || response.status === 0) {
-          // OAuth is configured and redirecting, follow the redirect
-          window.location.href = '/auth/login';
+          // OAuth not configured, fallback to legacy KOauth login
+          console.log('OAuth not configured, using legacy login');
+          loginInfo.textContent = 'OAuth not configured. Using legacy authentication...';
+          const legacyUrl = `${window.location.origin.replace('://kura.', '://auth.')}/login?callback=${encodeURIComponent(window.location.origin)}`;
+          window.location.href = legacyUrl;
         } else {
-          // Unexpected response
-          console.error('Unexpected response from /auth/login:', response.status);
-          loginInfo.textContent = 'Unexpected error. Please contact your administrator.';
-          loginBtn.disabled = false;
-          loginBtn.textContent = 'Login with KOauth';
+          // OAuth is configured, redirect to OAuth flow
+          window.location.href = '/auth/login';
         }
       } catch (error) {
         console.error('Login error:', error);
-        loginInfo.textContent = 'Error initiating login. Please try again or contact your administrator.';
+        loginInfo.textContent = 'Error initiating login. Please try again.';
         loginBtn.disabled = false;
         loginBtn.textContent = 'Login with KOauth';
       }
