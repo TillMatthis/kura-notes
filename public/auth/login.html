@@ -96,7 +96,7 @@
   </div>
 
   <script>
-    // Try OAuth 2.0 first, fallback to legacy login if not configured
+    // OAuth 2.0 login flow
     const loginBtn = document.getElementById('login-btn');
     const loginInfo = document.getElementById('login-info');
 
@@ -112,18 +112,31 @@
         });
 
         if (response.status === 503) {
-          // OAuth not configured, fallback to legacy KOauth login
-          console.log('OAuth not configured, using legacy login');
-          loginInfo.textContent = 'OAuth not configured. Using legacy authentication...';
-          const legacyUrl = `${window.location.origin.replace('://kura.', '://auth.')}/login?callback=${encodeURIComponent(window.location.origin)}`;
-          window.location.href = legacyUrl;
-        } else {
-          // OAuth is configured, redirect to OAuth flow
+          // OAuth not configured - show error instead of redirecting
+          console.error('OAuth not configured');
+          loginInfo.innerHTML = '<strong style="color: #d32f2f;">Authentication Not Configured</strong><br>' +
+            'OAuth 2.0 is not set up. Please configure the following environment variables:<br>' +
+            '<code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 12px;">OAUTH_CLIENT_ID</code>, ' +
+            '<code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 12px;">OAUTH_CLIENT_SECRET</code>, ' +
+            '<code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 12px;">OAUTH_REDIRECT_URI</code><br>' +
+            'Contact your system administrator for assistance.';
+          loginBtn.disabled = false;
+          loginBtn.textContent = 'Login with KOauth';
+        } else if (response.type === 'opaqueredirect' || response.status === 302 || response.status === 0) {
+          // OAuth is configured and redirecting, follow the redirect
           window.location.href = '/auth/login';
+        } else {
+          // Unexpected response
+          console.error('Unexpected response from /auth/login:', response.status);
+          loginInfo.innerHTML = '<strong style="color: #d32f2f;">Unexpected Error</strong><br>' +
+            'Unable to initiate login. Please contact your system administrator.';
+          loginBtn.disabled = false;
+          loginBtn.textContent = 'Login with KOauth';
         }
       } catch (error) {
         console.error('Login error:', error);
-        loginInfo.textContent = 'Error initiating login. Please try again.';
+        loginInfo.innerHTML = '<strong style="color: #d32f2f;">Connection Error</strong><br>' +
+          'Unable to connect to authentication service. Please try again or contact your system administrator.';
         loginBtn.disabled = false;
         loginBtn.textContent = 'Login with KOauth';
       }

@@ -76,7 +76,21 @@ export async function createServer(): Promise<FastifyInstance> {
     logger.info('KOauth initialized successfully');
   } catch (error) {
     logger.error('Failed to initialize KOauth', { error });
-    throw new Error('KOauth initialization failed. Ensure auth.tillmaessen.de is accessible.');
+
+    // Check if OAuth 2.0 is configured as fallback
+    const hasOAuthConfigured = config.oauthClientId && config.oauthClientSecret && config.oauthRedirectUri;
+
+    if (hasOAuthConfigured) {
+      logger.warn('KOauth unavailable, but OAuth 2.0 is configured. Server will continue with OAuth only.');
+      logger.info('Users must use OAuth 2.0 authentication via /auth/login');
+    } else {
+      logger.error('Neither KOauth nor OAuth 2.0 is properly configured');
+      throw new Error(
+        'Authentication initialization failed. Either:\n' +
+        '  1. Ensure KOauth service at ' + config.koauthUrl + ' is accessible, OR\n' +
+        '  2. Configure OAuth 2.0 by setting OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, and OAUTH_REDIRECT_URI'
+      );
+    }
   }
 
   // Register plugins
