@@ -2,86 +2,9 @@ version: '3.8'
 
 services:
   # ============================================
-  # PostgreSQL Database (for KOauth)
-  # ============================================
-  postgres:
-    image: postgres:16-alpine
-    container_name: kura-notes-postgres
-    environment:
-      - POSTGRES_DB=${KOAUTH_DB_NAME:-koauth}
-      - POSTGRES_USER=${KOAUTH_DB_USER:-koauth}
-      - POSTGRES_PASSWORD=${KOAUTH_DB_PASSWORD}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    networks:
-      - kura-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${KOAUTH_DB_USER:-koauth}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ============================================
-  # KOauth Authentication Service
-  # ============================================
-  koauth:
-    image: ghcr.io/tillmatthis/koauth:latest
-    container_name: kura-notes-koauth
-    ports:
-      - "${KOAUTH_PORT:-3001}:3000"
-    environment:
-      - NODE_ENV=${NODE_ENV:-production}
-      - PORT=3000
-      - DATABASE_URL=postgresql://${KOAUTH_DB_USER:-koauth}:${KOAUTH_DB_PASSWORD}@postgres:5432/${KOAUTH_DB_NAME:-koauth}
-      - SESSION_SECRET=${KOAUTH_SESSION_SECRET}
-      - GOOGLE_CLIENT_ID=${KOAUTH_GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${KOAUTH_GOOGLE_CLIENT_SECRET}
-      - GITHUB_CLIENT_ID=${KOAUTH_GITHUB_CLIENT_ID}
-      - GITHUB_CLIENT_SECRET=${KOAUTH_GITHUB_CLIENT_SECRET}
-      - BASE_URL=${KOAUTH_BASE_URL:-https://auth.tillmaessen.de}
-      - ALLOWED_CALLBACK_URLS=${KOAUTH_ALLOWED_CALLBACKS:-https://kura.tillmaessen.de}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - kura-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 20s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ============================================
   # API Service (Fastify Backend)
+  # ============================================
+  # Note: KOauth is deployed externally at auth.tillmaessen.de
   # ============================================
   api:
     build:
@@ -99,15 +22,13 @@ services:
       - DATABASE_URL=/data/metadata/knowledge.db
       - VECTOR_STORE_URL=http://vectordb:8000
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - KOAUTH_URL=http://koauth:3000
+      - KOAUTH_URL=${KOAUTH_URL:-https://auth.tillmaessen.de}
       - KOAUTH_TIMEOUT=${KOAUTH_TIMEOUT:-5000}
     volumes:
       - ./data:/data
     depends_on:
       vectordb:
         condition: service_started
-      koauth:
-        condition: service_healthy
     networks:
       - kura-network
     restart: unless-stopped
@@ -217,9 +138,6 @@ networks:
 # Volumes
 # ============================================
 volumes:
-  postgres-data:
-    driver: local
-    name: kura-postgres-data
   chroma-data:
     driver: local
     name: kura-chroma-data
