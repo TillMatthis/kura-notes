@@ -44,6 +44,13 @@ interface OAuthTokenResponse {
 }
 
 /**
+ * Check if OAuth is configured
+ */
+function isOAuthConfigured(): boolean {
+  return !!(config.oauthClientId && config.oauthClientSecret && config.oauthRedirectUri);
+}
+
+/**
  * Register OAuth routes
  */
 export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<void> {
@@ -54,6 +61,16 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
   fastify.get('/auth/login', async (request: FastifyRequest, reply: FastifyReply) => {
     logger.debug('Initiating OAuth login flow');
 
+    // Check if OAuth is configured
+    if (!isOAuthConfigured()) {
+      logger.error('OAuth not configured - missing environment variables');
+      return reply.status(503).send({
+        error: 'OAuth not configured',
+        message: 'OAuth 2.0 authentication is not configured. Please set OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, and OAUTH_REDIRECT_URI environment variables.',
+        documentation: 'See docs/OAUTH_IMPLEMENTATION.md for setup instructions'
+      });
+    }
+
     // Generate CSRF protection state
     const state = generateRandomString(32);
     request.session.oauthState = state;
@@ -61,8 +78,8 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
     // Build authorization URL
     const authUrl = new URL(`${config.koauthUrl}/oauth/authorize`);
     authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('client_id', config.oauthClientId);
-    authUrl.searchParams.set('redirect_uri', config.oauthRedirectUri);
+    authUrl.searchParams.set('client_id', config.oauthClientId!);
+    authUrl.searchParams.set('redirect_uri', config.oauthRedirectUri!);
     authUrl.searchParams.set('scope', 'openid profile email');
     authUrl.searchParams.set('state', state);
 
@@ -80,6 +97,15 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
    */
   fastify.get('/oauth/callback', async (request: FastifyRequest, reply: FastifyReply) => {
     logger.debug('OAuth callback received');
+
+    // Check if OAuth is configured
+    if (!isOAuthConfigured()) {
+      logger.error('OAuth not configured - cannot process callback');
+      return reply.status(503).send({
+        error: 'OAuth not configured',
+        message: 'OAuth 2.0 authentication is not configured. Please set OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, and OAUTH_REDIRECT_URI environment variables.'
+      });
+    }
 
     const { code, state } = request.query as { code: string; state: string; error?: string };
 
@@ -121,9 +147,9 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
         body: JSON.stringify({
           grant_type: 'authorization_code',
           code,
-          redirect_uri: config.oauthRedirectUri,
-          client_id: config.oauthClientId,
-          client_secret: config.oauthClientSecret,
+          redirect_uri: config.oauthRedirectUri!,
+          client_id: config.oauthClientId!,
+          client_secret: config.oauthClientSecret!,
         }),
       });
 
@@ -220,6 +246,12 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
 export async function refreshOAuthToken(refreshToken: string): Promise<OAuthTokenResponse | null> {
   try {
     logger.debug('Refreshing OAuth tokens');
+
+    // Check if OAuth is configured
+    if (!config.oauthClientId || !config.oauthClientSecret) {
+      logger.error('OAuth not configured - cannot refresh token');
+      return null;
+    }
 
     const response = await fetch(`${config.koauthUrl}/oauth/token`, {
       method: 'POST',

@@ -29,11 +29,21 @@ export async function errorHandler(
     statusCode,
   });
 
-  // Check if request accepts HTML (browser request) and it's a 500 error
+  // Check if request accepts HTML (browser request)
   const acceptsHtml = request.headers.accept?.includes('text/html');
-  if (acceptsHtml && !path.startsWith('/api/') && statusCode >= 500) {
-    // Serve 500 HTML page for browser requests
-    return reply.status(500).type('text/html').sendFile('500.html');
+
+  // For browser requests (non-API paths)
+  if (acceptsHtml && !path.startsWith('/api/')) {
+    // Handle authentication errors - redirect to login instead of 401
+    if (statusCode === 401) {
+      logger.debug('Redirecting unauthenticated browser request to login', { path });
+      return reply.redirect('/auth/login.html');
+    }
+
+    // Serve 500 HTML page for server errors
+    if (statusCode >= 500) {
+      return reply.status(500).type('text/html').sendFile('500.html');
+    }
   }
 
   // Handle ApiError (our custom errors)
