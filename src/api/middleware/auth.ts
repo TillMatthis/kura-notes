@@ -1,14 +1,15 @@
 /**
  * KURA Notes - Authentication Middleware
  *
- * OAuth-based authentication using KOauth
- * Replaces the previous API key authentication system
+ * OAuth 2.0 based authentication using KOauth
+ * Supports both OAuth sessions (browser) and API keys (programmatic access)
  */
 
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { logger } from '../../utils/logger.js';
 import { ApiErrors } from '../types/errors.js';
 import { validateApiKey } from '../../lib/koauth-client.js';
+import { refreshOAuthToken } from '../routes/oauth.js';
 
 // KOauth will be initialized in server.ts and provide these functions
 // Import will be added after KOauth initialization
@@ -16,6 +17,37 @@ let koauthGetUser: ((request: FastifyRequest) => { id: string; email: string; se
 
 // Store users authenticated via API keys
 const apiKeyUserMap = new WeakMap<FastifyRequest, { id: string; email: string } | null>();
+
+/**
+ * Verify and decode JWT token
+ */
+function verifyJwtToken(token: string): { sub?: string; userId?: string; email?: string; exp?: number } | null {
+  try {
+    // Decode JWT without verification (KOauth already verified it)
+    // We just need to check expiration and extract user info
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const payload = JSON.parse(
+      Buffer.from(parts[1]!.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
+    ) as { sub?: string; userId?: string; email?: string; exp?: number };
+
+    // Check if token is expired
+    if (payload.exp && payload.exp < Date.now() / 1000) {
+      logger.debug('JWT token expired', { exp: payload.exp, now: Date.now() / 1000 });
+      return null;
+    }
+
+    return payload;
+  } catch (error) {
+    logger.error('Error verifying JWT token', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
 
 /**
  * Set KOauth getUser function
@@ -44,12 +76,12 @@ const STATIC_FILE_EXTENSIONS = [
 ];
 
 /**
- * Authentication middleware using KOauth
- * Validates JWT tokens, API keys, or session cookies
+ * Authentication middleware using OAuth 2.0 and API keys
+ * Priority: OAuth session -> Legacy session -> API key
  */
 export async function authMiddleware(
   request: FastifyRequest,
-  _reply: FastifyReply
+  reply: FastifyReply
 ): Promise<void> {
   // Skip authentication for public paths
   if (PUBLIC_PATHS.includes(request.url)) {
@@ -62,32 +94,101 @@ export async function authMiddleware(
     return;
   }
 
-  // Skip authentication for auth-related routes
-  if (urlPath.startsWith('/auth')) {
+  // Skip authentication for auth-related routes and OAuth callback
+  if (urlPath.startsWith('/auth') || urlPath.startsWith('/oauth')) {
     return;
   }
 
-  // Check if KOauth is initialized
-  if (!koauthGetUser) {
-    logger.error('KOauth not initialized - authentication unavailable');
-    throw ApiErrors.unauthorized('Authentication system not initialized');
+  // 1. Try OAuth session authentication (highest priority)
+  if (request.session?.accessToken) {
+    const payload = verifyJwtToken(request.session.accessToken);
+
+    if (payload) {
+      // Token is valid
+      const userId = payload.sub || payload.userId;
+      const userEmail = payload.email;
+
+      if (userId && userEmail) {
+        // Store user in session for getAuthenticatedUser
+        request.session.user = {
+          id: userId,
+          email: userEmail,
+        };
+
+        logger.debug('OAuth session authentication successful', {
+          method: request.method,
+          url: request.url,
+          userId,
+          email: userEmail,
+        });
+        return;
+      }
+    } else {
+      // Token expired - try refresh
+      if (request.session.refreshToken) {
+        logger.debug('Access token expired, attempting refresh');
+
+        const newTokens = await refreshOAuthToken(request.session.refreshToken);
+        if (newTokens) {
+          // Update session with new tokens
+          request.session.accessToken = newTokens.access_token;
+          request.session.refreshToken = newTokens.refresh_token;
+
+          // Decode new access token
+          const newPayload = verifyJwtToken(newTokens.access_token);
+          if (newPayload) {
+            const userId = newPayload.sub || newPayload.userId;
+            const userEmail = newPayload.email;
+
+            if (userId && userEmail) {
+              request.session.user = {
+                id: userId,
+                email: userEmail,
+              };
+
+              logger.info('OAuth token refreshed successfully', {
+                userId,
+                email: userEmail,
+              });
+              return;
+            }
+          }
+        }
+
+        // Refresh failed - clear session and redirect to login
+        logger.warn('OAuth token refresh failed, clearing session');
+        request.session.destroy();
+
+        // For API requests, return 401
+        if (urlPath.startsWith('/api/')) {
+          throw ApiErrors.unauthorized('Session expired, please login again');
+        }
+
+        // For browser requests, redirect to login
+        return reply.redirect('/auth/login');
+      }
+
+      // No refresh token - clear session
+      request.session.destroy();
+    }
   }
 
-  // First, try session-based authentication (synchronous, no external call needed)
-  const sessionUser = koauthGetUser(request);
+  // 2. Try legacy KOauth session (backward compatibility)
+  if (koauthGetUser) {
+    const sessionUser = koauthGetUser(request);
 
-  if (sessionUser) {
-    // Session authentication successful
-    logger.debug('Session authentication successful', {
-      method: request.method,
-      url: request.url,
-      userId: sessionUser.id,
-      email: sessionUser.email,
-    });
-    return;
+    if (sessionUser) {
+      logger.debug('Legacy session authentication successful', {
+        method: request.method,
+        url: request.url,
+        userId: sessionUser.id,
+        email: sessionUser.email,
+      });
+      return;
+    }
   }
 
-  // If no session, check for Bearer token (API key authentication)
+  // 3. Try API key authentication (for programmatic access)
   const authHeader = request.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
     const apiKey = authHeader.substring(7);
@@ -122,26 +223,36 @@ export async function authMiddleware(
     url: request.url,
     ip: request.ip,
     hasAuthHeader: !!authHeader,
+    hasSession: !!request.session,
   });
-  throw ApiErrors.unauthorized('Authentication required');
+
+  // For API requests, return 401
+  if (urlPath.startsWith('/api/')) {
+    throw ApiErrors.unauthorized('Authentication required');
+  }
+
+  // For browser requests, redirect to login
+  return reply.redirect('/auth/login');
 }
 
 /**
  * Get authenticated user from request
  * Helper function for routes to extract user information
- * Checks both session-based and API key authentication
+ * Checks OAuth session, legacy session, and API key authentication
  * @throws ApiError if user is not authenticated
  */
 export function getAuthenticatedUser(request: FastifyRequest): { id: string; email: string; sessionId?: string } {
-  if (!koauthGetUser) {
-    logger.error('KOauth not initialized');
-    throw ApiErrors.unauthorized('Authentication system not initialized');
+  // Check OAuth session first
+  if (request.session?.user) {
+    return request.session.user;
   }
 
-  // Check session authentication first
-  const sessionUser = koauthGetUser(request);
-  if (sessionUser) {
-    return sessionUser;
+  // Check legacy KOauth session
+  if (koauthGetUser) {
+    const sessionUser = koauthGetUser(request);
+    if (sessionUser) {
+      return sessionUser;
+    }
   }
 
   // Check API key authentication
@@ -160,17 +271,20 @@ export function getAuthenticatedUser(request: FastifyRequest): { id: string; ema
 /**
  * Get optional authenticated user from request
  * Returns null if not authenticated (for endpoints that work with/without auth)
- * Checks both session-based and API key authentication
+ * Checks OAuth session, legacy session, and API key authentication
  */
 export function getOptionalUser(request: FastifyRequest): { id: string; email: string; sessionId?: string } | null {
-  if (!koauthGetUser) {
-    return null;
+  // Check OAuth session first
+  if (request.session?.user) {
+    return request.session.user;
   }
 
-  // Check session authentication first
-  const sessionUser = koauthGetUser(request);
-  if (sessionUser) {
-    return sessionUser;
+  // Check legacy KOauth session
+  if (koauthGetUser) {
+    const sessionUser = koauthGetUser(request);
+    if (sessionUser) {
+      return sessionUser;
+    }
   }
 
   // Check API key authentication

@@ -12,6 +12,7 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
+import session from '@fastify/session';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
@@ -24,6 +25,7 @@ import { authMiddleware, setKoauthGetUser, getOptionalUser } from './middleware/
 import { initKOauth, getUser as koauthGetUser } from '../lib/koauth-client.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerOAuthRoutes } from './routes/oauth.js';
 import { registerCaptureRoutes } from './routes/capture.js';
 import { registerContentRoutes } from './routes/content.js';
 import { registerSearchRoutes } from './routes/search.js';
@@ -120,7 +122,7 @@ export async function createServer(): Promise<FastifyInstance> {
 async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   logger.debug('Registering Fastify plugins...');
 
-  // Cookie plugin (for session management)
+  // Cookie plugin (required for session management)
   await fastify.register(cookie, {
     secret: process.env.COOKIE_SECRET || 'kura-notes-cookie-secret', // Used for signing cookies
     parseOptions: {
@@ -131,6 +133,21 @@ async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   });
 
   logger.info('Cookie plugin configured');
+
+  // Session plugin (for OAuth token storage)
+  await fastify.register(session, {
+    secret: process.env.SESSION_SECRET || process.env.COOKIE_SECRET || 'kura-notes-session-secret-change-in-production',
+    cookie: {
+      httpOnly: true,
+      secure: config.nodeEnv === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    },
+    saveUninitialized: false,
+    rolling: true, // Extend session on each request
+  });
+
+  logger.info('Session plugin configured');
 
   // CORS plugin
   await fastify.register(cors, {
@@ -237,6 +254,9 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
 
   // Health check routes
   await registerHealthRoutes(fastify);
+
+  // OAuth 2.0 routes
+  await registerOAuthRoutes(fastify);
 
   // Authentication routes (Task 4.7)
   await registerAuthRoutes(fastify);

@@ -69,13 +69,11 @@
   <div class="redirect-container">
     <div class="redirect-header">
       <h1>Welcome to KURA Notes</h1>
-      <p>Redirecting you to the authentication service...</p>
+      <p>Please log in to continue</p>
     </div>
 
-    <div class="spinner"></div>
-
     <div class="redirect-info">
-      <strong>Secure Authentication</strong><br>
+      <strong>Secure OAuth 2.0 Authentication</strong><br>
       You'll be redirected to our authentication service where you can:
       <ul style="text-align: left; margin: 10px 0 0 30px;">
         <li>Sign in with Google</li>
@@ -84,29 +82,17 @@
       </ul>
     </div>
 
+    <div style="margin-top: 30px;">
+      <a href="/auth/login" class="btn-primary" style="display: inline-block; padding: 12px 32px; background: #667eea; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; transition: background 0.2s;">
+        Login with KOauth
+      </a>
+    </div>
+
     <div class="manual-link">
-      <p>If you're not redirected automatically,<br>
-      <a href="#" id="manual-link">click here to continue</a></p>
+      <p style="margin-top: 20px; color: #666; font-size: 14px;">
+        Clicking the button above will initiate a secure OAuth 2.0 login flow
+      </p>
     </div>
   </div>
-
-  <script>
-    // Get KOauth URL from meta tag or use default
-    const koauthUrl = 'https://auth.tillmaessen.de';
-
-    // Get the callback URL (where to redirect after login)
-    const callbackUrl = window.location.origin;
-
-    // Build the login URL with callback
-    const loginUrl = `${koauthUrl}/login?callback=${encodeURIComponent(callbackUrl)}`;
-
-    // Update manual link
-    document.getElementById('manual-link').href = loginUrl;
-
-    // Auto-redirect after 2 seconds
-    setTimeout(() => {
-      window.location.href = loginUrl;
-    }, 2000);
-  </script>
 </body>
 </html>
