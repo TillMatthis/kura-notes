@@ -199,12 +199,9 @@ export function protectRoute() {
 
 /**
  * Validate API key with KOauth service (async)
- * For programmatic access (iOS Shortcuts, scripts)
- * Currently unused but reserved for future implementation
+ * For programmatic access (iOS Shortcuts, scripts, MCP server)
  */
-// @ts-expect-error - Reserved for future use
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function _validateApiKey(apiKey: string): Promise<KOauthUser | null> {
+export async function validateApiKey(apiKey: string): Promise<KOauthUser | null> {
   if (!koauthConfig) {
     logger.error('KOauth not initialized');
     return null;
