@@ -125,17 +125,20 @@ export function getUser(request: FastifyRequest): KOauthUser | null {
       ) as { userId?: string; sub?: string; id?: string; email?: string; sid?: string; sessionId?: string };
 
       // Extract user info from JWT payload
-      const user: KOauthUser = {
-        id: payload.userId || payload.sub || payload.id,
-        email: payload.email,
-        sessionId: payload.sid || payload.sessionId,
-      };
+      const userId = payload.userId || payload.sub || payload.id;
+      const userEmail = payload.email;
 
-      if (!user.id || !user.email) {
+      if (!userId || !userEmail) {
         logger.warn('JWT payload missing required user fields', { payload });
         requestUserMap.set(request, null);
         return null;
       }
+
+      const user: KOauthUser = {
+        id: userId,
+        email: userEmail,
+        sessionId: payload.sid || payload.sessionId,
+      };
 
       logger.debug('User authenticated via session cookie', {
         userId: user.id,
@@ -148,8 +151,6 @@ export function getUser(request: FastifyRequest): KOauthUser | null {
 
     // For API keys in Authorization header
     if (authHeader?.startsWith('Bearer ')) {
-      const _token = authHeader.substring(7);
-
       // API keys need to be validated with KOauth
       // This would require an async call, so for now we log a warning
       logger.warn('API key authentication not yet implemented - use session cookies', {
@@ -157,7 +158,8 @@ export function getUser(request: FastifyRequest): KOauthUser | null {
       });
 
       // TODO: Implement async API key validation with KOauth
-      // const user = await _validateApiKey(_token);
+      // const token = authHeader.substring(7);
+      // const user = await _validateApiKey(token);
 
       requestUserMap.set(request, null);
       return null;
@@ -200,6 +202,7 @@ export function protectRoute() {
  * For programmatic access (iOS Shortcuts, scripts)
  * Currently unused but reserved for future implementation
  */
+// @ts-expect-error - Reserved for future use
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function _validateApiKey(apiKey: string): Promise<KOauthUser | null> {
   if (!koauthConfig) {
