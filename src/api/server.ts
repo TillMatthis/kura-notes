@@ -58,25 +58,34 @@ export async function createServer(): Promise<FastifyInstance> {
     trustProxy: true, // Trust proxy headers (X-Forwarded-For, etc.)
   });
 
-  // Initialize KOauth authentication
-  logger.info('Initializing KOauth authentication...', {
-    koauthUrl: config.koauthUrl,
-    timeout: config.koauthTimeout,
-  });
-
-  try {
-    await initKOauth(fastify, {
-      baseUrl: config.koauthUrl,
+  // Initialize KOauth authentication (legacy session support - optional)
+  if (config.koauthUrl) {
+    logger.info('Initializing KOauth authentication...', {
+      koauthUrl: config.koauthUrl,
       timeout: config.koauthTimeout,
     });
 
-    // Set the KOauth getUser function in auth middleware
-    setKoauthGetUser(koauthGetUser);
+    try {
+      await initKOauth(fastify, {
+        baseUrl: config.koauthUrl,
+        timeout: config.koauthTimeout,
+      });
 
-    logger.info('KOauth initialized successfully');
-  } catch (error) {
-    logger.error('Failed to initialize KOauth', { error });
-    throw new Error('KOauth initialization failed. Ensure auth.tillmaessen.de is accessible.');
+      // Set the KOauth getUser function in auth middleware
+      setKoauthGetUser(koauthGetUser);
+
+      logger.info('KOauth initialized successfully');
+    } catch (error) {
+      logger.warn('Failed to initialize KOauth - legacy session auth will not be available', {
+        error: error instanceof Error ? error.message : String(error),
+        koauthUrl: config.koauthUrl,
+      });
+      logger.info('Server will continue with OAuth 2.0 authentication only');
+      // Continue without KOauth - OAuth 2.0 will still work if configured
+    }
+  } else {
+    logger.info('KOauth URL not configured - legacy session auth disabled');
+    logger.info('OAuth 2.0 authentication will be used');
   }
 
   // Register plugins

@@ -20,8 +20,8 @@ export interface Config {
   apiPort: number;
   apiKey: string; // Deprecated - kept for backward compatibility
 
-  // KOauth Authentication
-  koauthUrl: string;
+  // KOauth Authentication (legacy - optional)
+  koauthUrl?: string;
   koauthTimeout: number;
 
   // OAuth 2.0 Configuration (optional - required only for OAuth flow)
@@ -121,8 +121,8 @@ export function loadConfig(): Config {
     apiPort: getEnvInt('API_PORT', 3000),
     apiKey: getEnv('API_KEY', 'dev-api-key-change-in-production'),
 
-    // KOauth Authentication
-    koauthUrl: getEnv('KOAUTH_URL', 'https://auth.tillmaessen.de'),
+    // KOauth Authentication (legacy - optional)
+    koauthUrl: getOptionalEnv('KOAUTH_URL'),
     koauthTimeout: getEnvInt('KOAUTH_TIMEOUT', 5000),
 
     // OAuth 2.0 Configuration (optional)
@@ -199,10 +199,8 @@ function validateConfig(config: Config): void {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Validate required fields (always required)
-  if (!config.koauthUrl) {
-    errors.push('KOAUTH_URL is required');
-  } else if (!isValidUrl(config.koauthUrl)) {
+  // Validate KOauth URL if provided (optional for backward compatibility)
+  if (config.koauthUrl && !isValidUrl(config.koauthUrl)) {
     errors.push(`KOAUTH_URL must be a valid HTTP/HTTPS URL (got: ${config.koauthUrl})`);
   }
 
