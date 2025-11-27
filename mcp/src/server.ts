@@ -21,12 +21,27 @@ dotenv.config({ path: '../.env' });
 
 // Configuration
 const PORT = parseInt(process.env.MCP_PORT || '3001', 10);
+const NODE_ENV = process.env.NODE_ENV || 'development';
 const API_KEY = process.env.API_KEY;
 const KURA_API_URL = process.env.KURA_API_URL || 'http://api:3000';
 
+// API_KEY validation and warnings
 if (!API_KEY) {
-  console.error('ERROR: API_KEY environment variable is required');
-  process.exit(1);
+  console.warn('⚠️  WARNING: API_KEY environment variable is not set');
+  console.warn('');
+  if (NODE_ENV === 'production') {
+    console.warn('Running in PRODUCTION mode without API_KEY:');
+    console.warn('  - API requests will likely fail with authentication errors');
+    console.warn('  - API key authentication with KOauth is not yet fully implemented');
+    console.warn('  - Consider setting up session-based auth or API key with KOauth');
+    console.warn('');
+    console.warn('MCP server will start but may not function properly.');
+  } else {
+    console.warn('Running in DEVELOPMENT mode without API_KEY:');
+    console.warn('  - Using test user headers for authentication (x-test-user-id)');
+    console.warn('  - This only works in non-production KURA API environments');
+  }
+  console.warn('');
 }
 
 // Type definitions for KURA API responses
@@ -92,11 +107,23 @@ async function callKuraAPI(
   options: RequestInit = {}
 ): Promise<Response> {
   const url = `${KURA_API_URL}${endpoint}`;
-  const headers = {
-    Authorization: `Bearer ${API_KEY}`,
+
+  // Build headers based on authentication method
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
+    ...(options.headers as Record<string, string> || {}),
   };
+
+  if (API_KEY) {
+    // Use API key authentication (when KOauth API key validation is implemented)
+    headers['Authorization'] = `Bearer ${API_KEY}`;
+  } else {
+    // No API_KEY set: Use test headers
+    // NOTE: This only works if the KURA API is running in non-production mode
+    // because koauth-client.ts only accepts test headers when NODE_ENV !== 'production'
+    headers['x-test-user-id'] = 'mcp-test-user';
+    headers['x-test-user-email'] = 'mcp@test.local';
+  }
 
   const response = await fetch(url, {
     ...options,
