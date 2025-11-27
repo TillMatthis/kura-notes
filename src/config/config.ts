@@ -24,6 +24,11 @@ export interface Config {
   koauthUrl: string;
   koauthTimeout: number;
 
+  // OAuth 2.0 Configuration
+  oauthClientId: string;
+  oauthClientSecret: string;
+  oauthRedirectUri: string;
+
   // Database
   databaseUrl: string;
 
@@ -119,6 +124,11 @@ export function loadConfig(): Config {
     // KOauth Authentication
     koauthUrl: getEnv('KOAUTH_URL', 'https://auth.tillmaessen.de'),
     koauthTimeout: getEnvInt('KOAUTH_TIMEOUT', 5000),
+
+    // OAuth 2.0 Configuration
+    oauthClientId: getEnv('OAUTH_CLIENT_ID'),
+    oauthClientSecret: getEnv('OAUTH_CLIENT_SECRET'),
+    oauthRedirectUri: getEnv('OAUTH_REDIRECT_URI'),
 
     // Database
     databaseUrl: normalizeDatabasePath(
@@ -279,6 +289,9 @@ export function printConfig(config: Config): void {
     apiKey: maskSecret(config.apiKey) + ' (deprecated)',
     koauthUrl: config.koauthUrl,
     koauthTimeout: `${config.koauthTimeout}ms`,
+    oauthClientId: config.oauthClientId,
+    oauthClientSecret: maskSecret(config.oauthClientSecret),
+    oauthRedirectUri: config.oauthRedirectUri,
     databaseUrl: config.databaseUrl,
     vectorStoreUrl: config.vectorStoreUrl,
     vectorDbKey: maskSecret(config.vectorDbKey),
