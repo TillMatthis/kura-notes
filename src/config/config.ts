@@ -24,10 +24,10 @@ export interface Config {
   koauthUrl: string;
   koauthTimeout: number;
 
-  // OAuth 2.0 Configuration
-  oauthClientId: string;
-  oauthClientSecret: string;
-  oauthRedirectUri: string;
+  // OAuth 2.0 Configuration (optional - required only for OAuth flow)
+  oauthClientId?: string;
+  oauthClientSecret?: string;
+  oauthRedirectUri?: string;
 
   // Database
   databaseUrl: string;
@@ -125,10 +125,10 @@ export function loadConfig(): Config {
     koauthUrl: getEnv('KOAUTH_URL', 'https://auth.tillmaessen.de'),
     koauthTimeout: getEnvInt('KOAUTH_TIMEOUT', 5000),
 
-    // OAuth 2.0 Configuration
-    oauthClientId: getEnv('OAUTH_CLIENT_ID'),
-    oauthClientSecret: getEnv('OAUTH_CLIENT_SECRET'),
-    oauthRedirectUri: getEnv('OAUTH_REDIRECT_URI'),
+    // OAuth 2.0 Configuration (optional)
+    oauthClientId: getOptionalEnv('OAUTH_CLIENT_ID'),
+    oauthClientSecret: getOptionalEnv('OAUTH_CLIENT_SECRET'),
+    oauthRedirectUri: getOptionalEnv('OAUTH_REDIRECT_URI'),
 
     // Database
     databaseUrl: normalizeDatabasePath(

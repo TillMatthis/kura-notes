@@ -83,16 +83,51 @@
     </div>
 
     <div style="margin-top: 30px;">
-      <a href="/auth/login" class="btn-primary" style="display: inline-block; padding: 12px 32px; background: #667eea; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; transition: background 0.2s;">
+      <button id="login-btn" class="btn-primary" style="display: inline-block; padding: 12px 32px; background: #667eea; color: white; text-decoration: none; border: none; border-radius: 8px; font-weight: 600; transition: background 0.2s; cursor: pointer;">
         Login with KOauth
-      </a>
+      </button>
     </div>
 
     <div class="manual-link">
-      <p style="margin-top: 20px; color: #666; font-size: 14px;">
+      <p id="login-info" style="margin-top: 20px; color: #666; font-size: 14px;">
         Clicking the button above will initiate a secure OAuth 2.0 login flow
       </p>
     </div>
   </div>
+
+  <script>
+    // Try OAuth 2.0 first, fallback to legacy login if not configured
+    const loginBtn = document.getElementById('login-btn');
+    const loginInfo = document.getElementById('login-info');
+
+    loginBtn.addEventListener('click', async () => {
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Redirecting...';
+
+      try {
+        // Check if OAuth is configured by attempting to access the OAuth login route
+        const response = await fetch('/auth/login', {
+          method: 'GET',
+          redirect: 'manual' // Don't follow redirects
+        });
+
+        if (response.status === 503) {
+          // OAuth not configured, fallback to legacy KOauth login
+          console.log('OAuth not configured, using legacy login');
+          loginInfo.textContent = 'OAuth not configured. Using legacy authentication...';
+          const legacyUrl = `${window.location.origin.replace('://kura.', '://auth.')}/login?callback=${encodeURIComponent(window.location.origin)}`;
+          window.location.href = legacyUrl;
+        } else {
+          // OAuth is configured, redirect to OAuth flow
+          window.location.href = '/auth/login';
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        loginInfo.textContent = 'Error initiating login. Please try again.';
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login with KOauth';
+      }
+    });
+  </script>
 </body>
 </html>
