@@ -11,6 +11,7 @@
 
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
@@ -20,7 +21,7 @@ import { logger } from '../utils/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger, responseLogger } from './middleware/requestLogger.js';
 import { authMiddleware, setKoauthGetUser, getOptionalUser } from './middleware/auth.js';
-import { initKOauth, getUser as koauthGetUser } from '../lib/koauth-stub.js';
+import { initKOauth, getUser as koauthGetUser } from '../lib/koauth-client.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerCaptureRoutes } from './routes/capture.js';
@@ -118,6 +119,18 @@ export async function createServer(): Promise<FastifyInstance> {
  */
 async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   logger.debug('Registering Fastify plugins...');
+
+  // Cookie plugin (for session management)
+  await fastify.register(cookie, {
+    secret: process.env.COOKIE_SECRET || 'kura-notes-cookie-secret', // Used for signing cookies
+    parseOptions: {
+      httpOnly: true,
+      secure: config.nodeEnv === 'production',
+      sameSite: 'lax',
+    },
+  });
+
+  logger.info('Cookie plugin configured');
 
   // CORS plugin
   await fastify.register(cors, {
