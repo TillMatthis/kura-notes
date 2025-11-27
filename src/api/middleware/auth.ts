@@ -8,10 +8,14 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { logger } from '../../utils/logger.js';
 import { ApiErrors } from '../types/errors.js';
+import { validateApiKey } from '../../lib/koauth-client.js';
 
 // KOauth will be initialized in server.ts and provide these functions
 // Import will be added after KOauth initialization
 let koauthGetUser: ((request: FastifyRequest) => { id: string; email: string; sessionId?: string } | null) | null = null;
+
+// Store users authenticated via API keys
+const apiKeyUserMap = new WeakMap<FastifyRequest, { id: string; email: string } | null>();
 
 /**
  * Set KOauth getUser function
@@ -69,30 +73,63 @@ export async function authMiddleware(
     throw ApiErrors.unauthorized('Authentication system not initialized');
   }
 
-  // Get user from KOauth (handles sessions, API keys, and JWT tokens)
-  const user = koauthGetUser(request);
+  // First, try session-based authentication (synchronous, no external call needed)
+  const sessionUser = koauthGetUser(request);
 
-  if (!user) {
-    logger.warn('Authentication failed - no valid credentials', {
+  if (sessionUser) {
+    // Session authentication successful
+    logger.debug('Session authentication successful', {
       method: request.method,
       url: request.url,
-      ip: request.ip,
+      userId: sessionUser.id,
+      email: sessionUser.email,
     });
-    throw ApiErrors.unauthorized('Authentication required');
+    return;
   }
 
-  // Authentication successful - user is attached to request by KOauth
-  logger.debug('Authentication successful', {
+  // If no session, check for Bearer token (API key authentication)
+  const authHeader = request.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const apiKey = authHeader.substring(7);
+
+    try {
+      const apiKeyUser = await validateApiKey(apiKey);
+
+      if (apiKeyUser) {
+        // Store API key user in WeakMap for later retrieval
+        apiKeyUserMap.set(request, apiKeyUser);
+
+        logger.debug('API key authentication successful', {
+          method: request.method,
+          url: request.url,
+          userId: apiKeyUser.id,
+          email: apiKeyUser.email,
+        });
+        return;
+      }
+    } catch (error) {
+      logger.warn('API key validation error', {
+        error: error instanceof Error ? error.message : String(error),
+        method: request.method,
+        url: request.url,
+      });
+    }
+  }
+
+  // No valid authentication found
+  logger.warn('Authentication failed - no valid credentials', {
     method: request.method,
     url: request.url,
-    userId: user.id,
-    email: user.email,
+    ip: request.ip,
+    hasAuthHeader: !!authHeader,
   });
+  throw ApiErrors.unauthorized('Authentication required');
 }
 
 /**
  * Get authenticated user from request
  * Helper function for routes to extract user information
+ * Checks both session-based and API key authentication
  * @throws ApiError if user is not authenticated
  */
 export function getAuthenticatedUser(request: FastifyRequest): { id: string; email: string; sessionId?: string } {
@@ -101,27 +138,46 @@ export function getAuthenticatedUser(request: FastifyRequest): { id: string; ema
     throw ApiErrors.unauthorized('Authentication system not initialized');
   }
 
-  const user = koauthGetUser(request);
-
-  if (!user) {
-    logger.warn('User not authenticated', {
-      method: request.method,
-      url: request.url,
-    });
-    throw ApiErrors.unauthorized('Authentication required');
+  // Check session authentication first
+  const sessionUser = koauthGetUser(request);
+  if (sessionUser) {
+    return sessionUser;
   }
 
-  return user;
+  // Check API key authentication
+  const apiKeyUser = apiKeyUserMap.get(request);
+  if (apiKeyUser) {
+    return apiKeyUser;
+  }
+
+  logger.warn('User not authenticated', {
+    method: request.method,
+    url: request.url,
+  });
+  throw ApiErrors.unauthorized('Authentication required');
 }
 
 /**
  * Get optional authenticated user from request
  * Returns null if not authenticated (for endpoints that work with/without auth)
+ * Checks both session-based and API key authentication
  */
 export function getOptionalUser(request: FastifyRequest): { id: string; email: string; sessionId?: string } | null {
   if (!koauthGetUser) {
     return null;
   }
 
-  return koauthGetUser(request);
+  // Check session authentication first
+  const sessionUser = koauthGetUser(request);
+  if (sessionUser) {
+    return sessionUser;
+  }
+
+  // Check API key authentication
+  const apiKeyUser = apiKeyUserMap.get(request);
+  if (apiKeyUser) {
+    return apiKeyUser;
+  }
+
+  return null;
 }
