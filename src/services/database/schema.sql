@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS content (
 -- =============================================================================
 -- Indexes for Performance
 -- =============================================================================
-CREATE INDEX IF NOT EXISTS idx_user_id ON content(user_id);
+-- Note: idx_user_id is created by conditional migration in database.service.ts
+-- to handle existing databases that don't have the user_id column yet
 CREATE INDEX IF NOT EXISTS idx_content_type ON content(content_type);
 CREATE INDEX IF NOT EXISTS idx_created_at ON content(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_updated_at ON content(updated_at DESC);
