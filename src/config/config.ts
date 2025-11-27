@@ -229,15 +229,7 @@ function validateConfig(config: Config): void {
 
   // Production-specific validation
   if (config.nodeEnv === 'production') {
-    // API key should be changed from default
-    if (config.apiKey === 'dev-api-key-change-in-production') {
-      errors.push('API_KEY must be changed from default value in production');
-    }
-
-    // API key should be strong enough
-    if (config.apiKey.length < 32) {
-      errors.push('API_KEY should be at least 32 characters long in production');
-    }
+    // Note: API_KEY validation removed as it's deprecated in favor of KOauth
 
     // OpenAI API key should be set
     if (!config.openaiApiKey) {
