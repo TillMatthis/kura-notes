@@ -111,6 +111,10 @@ async function handleTextCapture(
     hasAnnotation: !!annotation,
     tagCount: tags?.length || 0,
     contentLength: content?.length || 0,
+    // DEBUG: Log actual values to investigate missing tags/title issue
+    titleValue: title,
+    tagsValue: tags,
+    fullRequestBody: request.body,
   });
 
   // Validate content is not empty (after trimming)
