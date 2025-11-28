@@ -38,6 +38,8 @@ export interface Config {
 
   // OpenAI
   openaiApiKey?: string;
+  openaiOrganization?: string;
+  openaiProject?: string;
   openaiEmbeddingModel: string;
 
   // Storage
@@ -141,6 +143,8 @@ export function loadConfig(): Config {
 
     // OpenAI
     openaiApiKey: getOptionalEnv('OPENAI_API_KEY'),
+    openaiOrganization: getOptionalEnv('OPENAI_ORG_ID'),
+    openaiProject: getOptionalEnv('OPENAI_PROJECT_ID'),
     openaiEmbeddingModel: getEnv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
 
     // Storage
@@ -296,6 +300,8 @@ export function printConfig(config: Config): void {
     vectorStoreUrl: config.vectorStoreUrl,
     vectorDbKey: maskSecret(config.vectorDbKey),
     openaiApiKey: maskSecret(config.openaiApiKey),
+    openaiOrganization: config.openaiOrganization || '<not set>',
+    openaiProject: config.openaiProject || '<not set>',
     openaiEmbeddingModel: config.openaiEmbeddingModel,
     storageBasePath: config.storageBasePath,
     maxFileSize: `${Math.round(config.maxFileSize / 1024 / 1024)}MB`,

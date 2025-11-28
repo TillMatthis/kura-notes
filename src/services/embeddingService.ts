@@ -25,6 +25,8 @@ export interface EmbeddingResult {
  */
 interface EmbeddingServiceConfig {
   apiKey: string;
+  organization?: string;
+  project?: string;
   model: string;
   maxTextLength: number;
   maxRetries: number;
@@ -50,12 +52,16 @@ export class EmbeddingService {
     if (userConfig.apiKey) {
       this.client = new OpenAI({
         apiKey: userConfig.apiKey,
+        organization: userConfig.organization,
+        project: userConfig.project,
       });
 
       logger.info('EmbeddingService initialized', {
         model: userConfig.model,
         maxTextLength: userConfig.maxTextLength,
         maxRetries: userConfig.maxRetries,
+        hasOrganization: !!userConfig.organization,
+        hasProject: !!userConfig.project,
       });
     } else {
       logger.warn('EmbeddingService initialized without API key. Embeddings will not be available.');
@@ -71,6 +77,8 @@ export class EmbeddingService {
         // Use default config from environment
         userConfig = {
           apiKey: config.openaiApiKey || '',
+          organization: config.openaiOrganization,
+          project: config.openaiProject,
           model: config.openaiEmbeddingModel || 'text-embedding-3-small',
           maxTextLength: 8000, // Max 8000 characters
           maxRetries: 3,
@@ -307,6 +315,8 @@ export class EmbeddingService {
 export function getEmbeddingService(): EmbeddingService {
   return EmbeddingService.getInstance({
     apiKey: config.openaiApiKey || '',
+    organization: config.openaiOrganization,
+    project: config.openaiProject,
     model: config.openaiEmbeddingModel || 'text-embedding-3-small',
     maxTextLength: 8000,
     maxRetries: 3,
