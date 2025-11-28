@@ -306,40 +306,22 @@ function createMCPServer(): Server {
         }
 
         case 'kura_create': {
-          // DEBUG: Log what we receive from Claude
-          console.log('[DEBUG] kura_create args from Claude:', JSON.stringify(args, null, 2));
-
-          const { content, title, annotation, tags, metadata } = args as {
+          const { content, title, annotation, tags } = args as {
             content: string;
             title?: string;
             annotation?: string;
             tags?: string[];
-            metadata?: {
-              title?: string;
-              tags?: string[];
-              annotation?: string;
-            };
           };
-
-          // Handle both direct fields and metadata object (in case Claude wraps them)
-          const finalTitle = title || metadata?.title;
-          const finalAnnotation = annotation || metadata?.annotation;
-          const finalTags = tags || metadata?.tags;
-
-          const requestBody = {
-            content,
-            title: finalTitle,
-            annotation: finalAnnotation,
-            tags: finalTags,
-            contentType: 'text' as const,
-          };
-
-          // DEBUG: Log what we're sending
-          console.log('[DEBUG] kura_create request body:', JSON.stringify(requestBody, null, 2));
 
           const response = await callKuraAPI('/api/capture', {
             method: 'POST',
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify({
+              content,
+              title,
+              annotation,
+              tags,
+              contentType: 'text',
+            }),
           });
 
           if (!response.ok) {
