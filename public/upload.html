@@ -22,7 +22,7 @@
           <li><a href="/upload.html" class="nav-link">Upload File</a></li>
           <li><a href="/search.html" class="nav-link">Search</a></li>
           <li><a href="/tags.html" class="nav-link">Tags</a></li>
-          <li>
+          <li style="display: none;">
             <button class="settings-button" onclick="openSettings()" aria-label="Settings" title="Settings">
               <span class="api-status-indicator" id="api-status-indicator"></span>
               <span>⚙️</span>
@@ -167,7 +167,6 @@
 
   <!-- Scripts -->
   <script src="/js/main.js"></script>
-  <script src="/js/settings.js"></script>
   <script src="/js/tag-autocomplete.js"></script>
   <script>
     const form = document.getElementById('upload-form');
@@ -255,11 +254,6 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      // Check API key
-      if (!checkApiKey()) {
-        return;
-      }
-
       const file = fileInput.files[0];
       if (!file) {
         showFormMessage('Please select a file', 'error');
@@ -319,9 +313,7 @@
         // Make API request
         const response = await fetch(`${API_BASE_URL}/api/capture`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('kura_api_key')}`,
-          },
+          credentials: 'include',
           body: formData,
         });
 
