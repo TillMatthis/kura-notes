@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Rebuild Database Script
 # Deletes the existing database and creates a fresh one with the latest schema
