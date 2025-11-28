@@ -1,13 +1,18 @@
 {
   "name": "kura-mcp-server",
   "version": "0.1.0",
-  "description": "Remote MCP server for KURA Notes - exposing notes API via SSE transport",
+  "description": "MCP server for KURA Notes - supports both SSE (remote) and stdio (local) transports",
   "type": "module",
   "main": "dist/server.js",
+  "bin": {
+    "kura-mcp": "dist/stdio-server.js"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:stdio": "tsx watch src/stdio-server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:stdio": "node dist/stdio-server.js",
     "clean": "rm -rf dist"
   },
   "keywords": [

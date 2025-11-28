@@ -77,47 +77,90 @@ Expected response:
 
 ## Claude Desktop Configuration
 
-### Remote Server Setup (Recommended for VPS)
+### Local MCP Server Setup (Recommended)
 
-Configure Claude Desktop to connect to your remote KURA MCP server:
+Claude Desktop uses stdio transport for MCP servers. The local MCP client runs on your machine and connects to your remote KURA API.
 
-1. **Locate Claude Desktop Config**
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-   - Linux: `~/.config/Claude/claude_desktop_config.json`
+#### 1. **Locate Claude Desktop Config**
 
-2. **Add KURA MCP Server Configuration**
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
 
-Edit `claude_desktop_config.json` and add the MCP server:
+#### 2. **Clone KURA Repository Locally**
+
+If you haven't already:
+
+```bash
+git clone https://github.com/YourUsername/kura-notes.git
+cd kura-notes/mcp
+npm install
+npm run build
+```
+
+#### 3. **Configure Claude Desktop**
+
+Edit `claude_desktop_config.json` and add:
 
 ```json
 {
   "mcpServers": {
     "kura-notes": {
-      "url": "https://kura.tillmaessen.de/mcp/sse",
-      "transport": {
-        "type": "sse"
+      "command": "node",
+      "args": [
+        "/absolute/path/to/kura-notes/mcp/dist/stdio-server.js"
+      ],
+      "env": {
+        "API_KEY": "your-api-key-here",
+        "KURA_API_URL": "https://kura.tillmaessen.de"
       }
     }
   }
 }
 ```
 
-3. **Restart Claude Desktop**
+**Important:**
+- Replace `/absolute/path/to/kura-notes` with the actual path to your cloned repository
+- Replace `your-api-key-here` with your actual KURA API key
+- On macOS, you can use `~/path/to/kura-notes` for your home directory
 
-After saving the configuration, restart Claude Desktop for the changes to take effect.
+**Example for macOS:**
+```json
+{
+  "mcpServers": {
+    "kura-notes": {
+      "command": "node",
+      "args": [
+        "/Users/yourname/Projects/kura-notes/mcp/dist/stdio-server.js"
+      ],
+      "env": {
+        "API_KEY": "abc123...",
+        "KURA_API_URL": "https://kura.tillmaessen.de"
+      }
+    }
+  }
+}
+```
 
-### Alternative: Local Development Setup
+#### 4. **Restart Claude Desktop**
 
-If you're running KURA locally (not on a VPS), use:
+After saving the configuration, completely quit and restart Claude Desktop for the changes to take effect.
+
+### Alternative: Local Development (KURA Running Locally)
+
+If you're running KURA on your local machine:
 
 ```json
 {
   "mcpServers": {
     "kura-notes": {
-      "url": "http://localhost:3001/sse",
-      "transport": {
-        "type": "sse"
+      "command": "node",
+      "args": [
+        "/absolute/path/to/kura-notes/mcp/dist/stdio-server.js"
+      ],
+      "env": {
+        "API_KEY": "your-api-key-here",
+        "KURA_API_URL": "http://localhost:3000"
       }
     }
   }
@@ -318,7 +361,92 @@ and content 'Discussed Q1 goals: improve API performance, add new features...'"
 
 ## Troubleshooting
 
-### MCP Server Not Starting
+### Claude Desktop Connection Issues
+
+#### MCP Server Not Appearing in Claude Desktop
+
+1. **Check the configuration file location** - Make sure you're editing the correct file:
+   ```bash
+   # macOS
+   cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
+
+   # Linux
+   cat ~/.config/Claude/claude_desktop_config.json
+   ```
+
+2. **Verify JSON syntax** - Invalid JSON will cause the config to be ignored:
+   ```bash
+   # Validate JSON (macOS/Linux)
+   cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | python3 -m json.tool
+   ```
+
+3. **Check file paths are absolute** - Relative paths won't work:
+   ```bash
+   # Test the path manually
+   node /absolute/path/to/kura-notes/mcp/dist/stdio-server.js
+   ```
+
+4. **Verify environment variables** - Make sure API_KEY is set correctly in the config
+
+5. **Completely restart Claude Desktop** - Use Cmd+Q (macOS) or close from system tray, don't just reload
+
+#### "Server disconnected" Error
+
+Check Claude Desktop logs for detailed error messages:
+- macOS: `~/Library/Logs/Claude/`
+- Windows: `%APPDATA%\Claude\logs\`
+- Linux: `~/.config/Claude/logs/`
+
+Common causes:
+- **Wrong Node version**: Ensure you have Node.js v20+ installed
+- **Missing dependencies**: Run `npm install` in the `mcp/` directory
+- **Invalid API key**: Check that your API_KEY is correct
+- **Network issues**: Verify you can reach the KURA API from your machine
+
+#### Node.js Version Issues
+
+The MCP server requires Node.js v20 or higher. Check your version:
+
+```bash
+node --version  # Should show v20.x.x or higher
+```
+
+If you have multiple Node versions (e.g., via nvm), you can:
+
+**Option 1: Specify the Node path in config**
+```json
+{
+  "mcpServers": {
+    "kura-notes": {
+      "command": "/path/to/node/v20/bin/node",
+      "args": ["/path/to/kura-notes/mcp/dist/stdio-server.js"],
+      "env": {
+        "API_KEY": "your-key",
+        "KURA_API_URL": "https://kura.tillmaessen.de"
+      }
+    }
+  }
+}
+```
+
+**Option 2: Use the wrapper script**
+```bash
+# Make the wrapper executable
+chmod +x /path/to/kura-notes/mcp/kura-mcp-bridge.sh
+```
+
+Then use it in your config:
+```json
+{
+  "mcpServers": {
+    "kura-notes": {
+      "command": "/path/to/kura-notes/mcp/kura-mcp-bridge.sh"
+    }
+  }
+}
+```
+
+### Remote SSE Server (Docker) Not Starting
 
 ```bash
 # Check logs
