@@ -148,6 +148,69 @@ export class DatabaseService {
         logger.debug('user_id column might already exist', { error });
       }
     }
+
+    // Check if FTS table has tags column (Migration 006)
+    const ftsColumns = this.db.pragma('table_info(content_fts)') as Array<{ name: string }>;
+    const ftsHasTags = ftsColumns.some((col) => col.name === 'tags');
+    if (!ftsHasTags) {
+      logger.info('Rebuilding FTS table to add tags column (Migration 006)');
+      try {
+        // Drop existing FTS table and triggers
+        this.db.exec('DROP TRIGGER IF EXISTS content_ai');
+        this.db.exec('DROP TRIGGER IF EXISTS content_au');
+        this.db.exec('DROP TRIGGER IF EXISTS content_ad');
+        this.db.exec('DROP TABLE IF EXISTS content_fts');
+
+        // Recreate FTS table with tags column
+        this.db.exec(`
+          CREATE VIRTUAL TABLE content_fts USING fts5(
+            title,
+            annotation,
+            extracted_text,
+            tags,
+            content='content',
+            content_rowid='rowid'
+          );
+        `);
+
+        // Recreate triggers with tags
+        this.db.exec(`
+          CREATE TRIGGER content_ai AFTER INSERT ON content BEGIN
+            INSERT INTO content_fts(rowid, title, annotation, extracted_text, tags)
+            VALUES (new.rowid, new.title, new.annotation, new.extracted_text, new.tags);
+          END;
+        `);
+
+        this.db.exec(`
+          CREATE TRIGGER content_au AFTER UPDATE ON content BEGIN
+            UPDATE content_fts
+            SET title = new.title,
+                annotation = new.annotation,
+                extracted_text = new.extracted_text,
+                tags = new.tags
+            WHERE rowid = new.rowid;
+          END;
+        `);
+
+        this.db.exec(`
+          CREATE TRIGGER content_ad AFTER DELETE ON content BEGIN
+            DELETE FROM content_fts WHERE rowid = old.rowid;
+          END;
+        `);
+
+        // Rebuild FTS index from existing content
+        this.db.exec(`
+          INSERT INTO content_fts(rowid, title, annotation, extracted_text, tags)
+          SELECT rowid, title, annotation, extracted_text, tags
+          FROM content;
+        `);
+
+        logger.info('FTS table rebuilt successfully with tags column');
+      } catch (error) {
+        logger.error('Failed to rebuild FTS table with tags', { error });
+        // Don't throw - allow database to continue operating
+      }
+    }
   }
 
   /**

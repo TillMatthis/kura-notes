@@ -54,6 +54,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS content_fts USING fts5(
   title,
   annotation,
   extracted_text,
+  tags,                      -- JSON array of tags for search
   content='content',         -- Link to content table
   content_rowid='rowid'      -- Use rowid for linking
 );
@@ -64,8 +65,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS content_fts USING fts5(
 
 -- Insert trigger: Add to FTS when new content is created
 CREATE TRIGGER IF NOT EXISTS content_ai AFTER INSERT ON content BEGIN
-  INSERT INTO content_fts(rowid, title, annotation, extracted_text)
-  VALUES (new.rowid, new.title, new.annotation, new.extracted_text);
+  INSERT INTO content_fts(rowid, title, annotation, extracted_text, tags)
+  VALUES (new.rowid, new.title, new.annotation, new.extracted_text, new.tags);
 END;
 
 -- Update trigger: Update FTS when content is modified
@@ -73,7 +74,8 @@ CREATE TRIGGER IF NOT EXISTS content_au AFTER UPDATE ON content BEGIN
   UPDATE content_fts
   SET title = new.title,
       annotation = new.annotation,
-      extracted_text = new.extracted_text
+      extracted_text = new.extracted_text,
+      tags = new.tags
   WHERE rowid = new.rowid;
 END;
 
@@ -120,3 +122,6 @@ VALUES (4, 'Add pdf_metadata field for PDF file information');
 
 INSERT OR IGNORE INTO schema_version (version, description)
 VALUES (5, 'Add user_id column for multi-user support');
+
+INSERT OR IGNORE INTO schema_version (version, description)
+VALUES (6, 'Add tags to FTS index for searchable tags');
