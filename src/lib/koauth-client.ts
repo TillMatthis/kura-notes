@@ -222,7 +222,22 @@ export async function validateApiKey(apiKey: string): Promise<KOauthUser | null>
       return null;
     }
 
-    const data = await response.json() as { userId: string; email: string };
+    const data = await response.json() as { valid: boolean; userId?: string; email?: string; error?: string };
+
+    // Check if the API key is valid
+    if (!data.valid) {
+      logger.warn('API key validation failed', { error: data.error });
+      return null;
+    }
+
+    // Ensure userId and email are present
+    if (!data.userId || !data.email) {
+      logger.error('API key validation response missing required fields', { data });
+      return null;
+    }
+
+    logger.info('API key validated successfully', { userId: data.userId, email: data.email });
+
     return {
       id: data.userId,
       email: data.email,
