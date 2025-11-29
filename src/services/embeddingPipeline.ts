@@ -145,7 +145,8 @@ export class EmbeddingPipelineService {
       }
 
       if (tags && tags.length > 0) {
-        metadata.tags = tags;
+        // ChromaDB metadata must be scalar values, so serialize tags as JSON string
+        metadata.tags = JSON.stringify(tags);
       }
 
       if (originalFilename) {
