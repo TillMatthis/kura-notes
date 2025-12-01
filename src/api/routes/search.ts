@@ -12,6 +12,7 @@ import { VectorStoreService } from '../../services/vectorStore.js';
 import { SearchService } from '../../services/searchService.js';
 import { ApiErrors } from '../types/errors.js';
 import type { ContentType, SearchFilters } from '../../models/content.js';
+import { getAuthenticatedUser } from '../middleware/auth.js';
 
 /**
  * Search result item
@@ -253,9 +254,10 @@ export async function registerSearchRoutes(
       request: FastifyRequest<{ Querystring: SearchQueryParams }>,
       _reply: FastifyReply
     ): Promise<SearchResponse> => {
+      const user = getAuthenticatedUser(request);
       const { query, limit: limitStr } = request.query;
 
-      logger.debug('Search request received', { query, limit: limitStr, filters: request.query });
+      logger.debug('Search request received', { query, limit: limitStr, filters: request.query, userId: user.id });
 
       // Validate and parse limit parameter
       const limit = limitStr ? parseInt(limitStr, 10) : 10;
@@ -283,6 +285,7 @@ export async function registerSearchRoutes(
         // Use the unified search service with automatic fallback
         const searchResult = await searchService.search({
           query: trimmedQuery,
+          userId: user.id, // Filter by authenticated user
           limit,
           useFallback: true, // Enable FTS fallback
           combineResults: false, // Don't combine for now (can be made configurable)

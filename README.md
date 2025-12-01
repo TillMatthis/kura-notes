@@ -138,6 +138,86 @@ Expected response:
 }
 ```
 
+## Beta Testing & Access Control
+
+KURA Notes supports **multi-user environments** with full data isolation between users. During development and testing, you can control who can sign up using an **email whitelist**.
+
+### Multi-User Support Status
+
+✅ **ENABLED** - Multi-user support is fully implemented:
+- Each user has isolated data storage
+- Authentication via KOauth (OAuth 2.0)
+- User ownership verified on all operations
+- Search results filtered by user
+- Safe for beta testing with friends
+
+### Controlling Access During Testing
+
+By default, anyone with a valid KOauth account can sign up. To **restrict access** during beta testing:
+
+#### 1. Set Email Whitelist
+
+Add the `ALLOWED_EMAILS` environment variable to your `.env`:
+
+```bash
+# Allow specific users to sign up (comma-separated)
+ALLOWED_EMAILS=you@example.com,friend@example.com,tester@example.com
+```
+
+**Features:**
+- Emails are case-insensitive (`User@Example.com` = `user@example.com`)
+- Comma-separated list for multiple users
+- Leave empty or unset to allow all users (open signup)
+
+#### 2. What Happens When Blocked
+
+Users not on the whitelist will see an error after attempting to sign up via KOauth:
+
+```
+Access denied
+Your email is not authorized to access this application.
+Please contact the administrator if you believe this is an error.
+```
+
+Their OAuth authentication will succeed with KOauth, but they won't be able to access your KURA Notes instance.
+
+### Inviting Beta Testers
+
+**To invite someone for beta testing:**
+
+1. Add their email to `ALLOWED_EMAILS` in your `.env`
+2. Restart the application (if running)
+3. Share your KURA Notes URL with them
+4. They sign up via KOauth (Google/GitHub)
+5. Their data is fully isolated from yours
+
+**Each user will:**
+- ✅ Only see their own notes and files
+- ✅ Only search their own content
+- ✅ Cannot access other users' data
+- ✅ Have their own storage space
+
+### Removing the Whitelist (Going Public)
+
+When you're ready to allow public signups, simply:
+
+```bash
+# Remove or leave empty
+ALLOWED_EMAILS=
+```
+
+Or remove the line entirely from your `.env`.
+
+### Security Notes
+
+- **Authentication:** All endpoints require KOauth authentication
+- **Authorization:** Ownership verified on every content access/modification
+- **Isolation:** Database queries filtered by `user_id` automatically
+- **Search:** Vector and FTS searches scoped to authenticated user
+- **Files:** File access verified against content ownership
+
+See `docs/OAUTH_IMPLEMENTATION.md` for authentication details.
+
 ## Development
 
 ### Available Scripts

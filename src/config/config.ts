@@ -29,6 +29,9 @@ export interface Config {
   oauthClientSecret?: string;
   oauthRedirectUri?: string;
 
+  // Access Control
+  allowedEmails?: string[]; // Email whitelist for signup control (empty = allow all)
+
   // Database
   databaseUrl: string;
 
@@ -112,6 +115,20 @@ function normalizeDatabasePath(path: string): string {
 }
 
 /**
+ * Parse comma-separated email list
+ */
+function parseEmailList(value: string | undefined): string[] | undefined {
+  if (!value || value.trim() === '') {
+    return undefined;
+  }
+
+  return value
+    .split(',')
+    .map(email => email.trim().toLowerCase())
+    .filter(email => email.length > 0);
+}
+
+/**
  * Load configuration from environment variables
  */
 export function loadConfig(): Config {
@@ -131,6 +148,9 @@ export function loadConfig(): Config {
     oauthClientId: getOptionalEnv('OAUTH_CLIENT_ID'),
     oauthClientSecret: getOptionalEnv('OAUTH_CLIENT_SECRET'),
     oauthRedirectUri: getOptionalEnv('OAUTH_REDIRECT_URI'),
+
+    // Access Control
+    allowedEmails: parseEmailList(getOptionalEnv('ALLOWED_EMAILS')),
 
     // Database
     databaseUrl: normalizeDatabasePath(
@@ -296,6 +316,7 @@ export function printConfig(config: Config): void {
     oauthClientId: config.oauthClientId,
     oauthClientSecret: maskSecret(config.oauthClientSecret),
     oauthRedirectUri: config.oauthRedirectUri,
+    allowedEmails: config.allowedEmails ? `${config.allowedEmails.length} email(s) whitelisted` : '<all emails allowed>',
     databaseUrl: config.databaseUrl,
     vectorStoreUrl: config.vectorStoreUrl,
     vectorDbKey: maskSecret(config.vectorDbKey),

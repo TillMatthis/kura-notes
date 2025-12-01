@@ -51,6 +51,25 @@ function isOAuthConfigured(): boolean {
 }
 
 /**
+ * Check if email is allowed to sign up
+ * Returns true if no whitelist is configured (open signup)
+ * Returns true if email is in the whitelist
+ * Returns false if whitelist is configured but email is not in it
+ */
+function isEmailAllowed(email: string): boolean {
+  // If no whitelist is configured, allow all emails
+  if (!config.allowedEmails || config.allowedEmails.length === 0) {
+    return true;
+  }
+
+  // Normalize email for comparison
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Check if email is in the whitelist
+  return config.allowedEmails.includes(normalizedEmail);
+}
+
+/**
  * Register OAuth routes
  */
 export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<void> {
@@ -191,6 +210,18 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
       if (!userId || !userEmail) {
         logger.error('Token payload missing required user fields', { payload });
         return reply.status(400).send({ error: 'Invalid token payload' });
+      }
+
+      // Check if email is allowed (whitelist check)
+      if (!isEmailAllowed(userEmail)) {
+        logger.warn('Signup attempt blocked by email whitelist', {
+          email: userEmail,
+          userId,
+        });
+        return reply.status(403).send({
+          error: 'Access denied',
+          message: 'Your email is not authorized to access this application. Please contact the administrator if you believe this is an error.',
+        });
       }
 
       // Store tokens and user info in session

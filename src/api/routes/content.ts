@@ -151,6 +151,7 @@ export async function registerContentRoutes(
   /**
    * GET /api/content/recent
    * Get recent content items (last 20, metadata only)
+   * Requires authentication
    */
   fastify.get(
     '/api/content/recent',
@@ -158,13 +159,12 @@ export async function registerContentRoutes(
       schema: recentContentSchema,
     },
     async (_request: FastifyRequest, _reply: FastifyReply): Promise<RecentContentResponse> => {
-      logger.debug('Recent content request received');
+      const user = getAuthenticatedUser(_request);
 
-      // Get optional user (works for both authenticated and public access)
-      const user = getOptionalUser(_request);
+      logger.debug('Recent content request received', { userId: user.id });
 
       try {
-        const items = db.getRecentContent(user?.id || null, 20);
+        const items = db.getRecentContent(user.id, 20);
 
         // Map to metadata-only format (exclude file_path and extracted_text)
         const metadata: ContentMetadata[] = items.map((item) => ({
@@ -211,14 +211,15 @@ export async function registerContentRoutes(
       _reply: FastifyReply
     ): Promise<ContentResponse> => {
       const { id } = request.params;
+      const user = getAuthenticatedUser(request);
 
-      logger.debug('Content retrieval request', { id });
+      logger.debug('Content retrieval request', { id, userId: user.id });
 
-      // Get metadata from database
-      const metadata = db.getContentById(id);
+      // Get metadata from database with ownership verification
+      const metadata = db.getContentById(id, user.id);
 
       if (!metadata) {
-        logger.warn('Content not found', { id });
+        logger.warn('Content not found or not owned by user', { id, userId: user.id });
         throw ApiErrors.notFound('Content not found');
       }
 
@@ -281,14 +282,15 @@ export async function registerContentRoutes(
       reply: FastifyReply
     ): Promise<void> => {
       const { id } = request.params;
+      const user = getAuthenticatedUser(request);
 
-      logger.debug('File download request', { id });
+      logger.debug('File download request', { id, userId: user.id });
 
-      // Get metadata from database
-      const metadata = db.getContentById(id);
+      // Get metadata from database with ownership verification
+      const metadata = db.getContentById(id, user.id);
 
       if (!metadata) {
-        logger.warn('Content not found', { id });
+        logger.warn('Content not found or not owned by user', { id, userId: user.id });
         throw ApiErrors.notFound('Content not found');
       }
 
@@ -364,14 +366,15 @@ export async function registerContentRoutes(
       reply: FastifyReply
     ): Promise<void> => {
       const { id } = request.params;
+      const user = getAuthenticatedUser(request);
 
-      logger.debug('Thumbnail request', { id });
+      logger.debug('Thumbnail request', { id, userId: user.id });
 
-      // Get metadata from database
-      const metadata = db.getContentById(id);
+      // Get metadata from database with ownership verification
+      const metadata = db.getContentById(id, user.id);
 
       if (!metadata) {
-        logger.warn('Content not found', { id });
+        logger.warn('Content not found or not owned by user', { id, userId: user.id });
         throw ApiErrors.notFound('Content not found');
       }
 
@@ -465,14 +468,15 @@ export async function registerContentRoutes(
       reply: FastifyReply
     ): Promise<void> => {
       const { id } = request.params;
+      const user = getAuthenticatedUser(request);
 
-      logger.debug('File download request', { id });
+      logger.debug('File download request', { id, userId: user.id });
 
-      // Get metadata from database
-      const metadata = db.getContentById(id);
+      // Get metadata from database with ownership verification
+      const metadata = db.getContentById(id, user.id);
 
       if (!metadata) {
-        logger.warn('Content not found', { id });
+        logger.warn('Content not found or not owned by user', { id, userId: user.id });
         throw ApiErrors.notFound('Content not found');
       }
 
@@ -556,19 +560,20 @@ export async function registerContentRoutes(
       _reply: FastifyReply
     ): Promise<{ success: true; message: string; timestamp: string }> => {
       const { id } = request.params;
+      const user = getAuthenticatedUser(request);
 
-      logger.debug('Content deletion request', { id });
+      logger.debug('Content deletion request', { id, userId: user.id });
 
-      // Check if content exists
-      const metadata = db.getContentById(id);
+      // Check if content exists and is owned by user
+      const metadata = db.getContentById(id, user.id);
       if (!metadata) {
-        logger.warn('Content not found for deletion', { id });
+        logger.warn('Content not found or not owned by user for deletion', { id, userId: user.id });
         throw ApiErrors.notFound('Content not found');
       }
 
       try {
-        // Delete file and metadata using FileStorageService
-        const result = await fileStorage.deleteFile(id);
+        // Delete file and metadata using FileStorageService with ownership verification
+        const result = await fileStorage.deleteFile(id, user.id);
 
         if (!result.success) {
           logger.error('Failed to delete content', {
