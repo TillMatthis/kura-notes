@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger.js';
 import { ApiErrors } from '../types/errors.js';
 import { validateApiKey } from '../../lib/koauth-client.js';
 import { refreshOAuthToken } from '../routes/oauth.js';
+import { verifyJWT } from '../../lib/jwt-verifier.js';
 
 // KOauth will be initialized in server.ts and provide these functions
 // Import will be added after KOauth initialization
@@ -19,34 +20,20 @@ let koauthGetUser: ((request: FastifyRequest) => { id: string; email: string; se
 const apiKeyUserMap = new WeakMap<FastifyRequest, { id: string; email: string } | null>();
 
 /**
- * Verify and decode JWT token
+ * Verify JWT token with RS256 signature and claim validation
+ * SECURITY: This now performs proper signature verification using KOauth's public key
  */
-function verifyJwtToken(token: string): { sub?: string; userId?: string; email?: string; exp?: number } | null {
-  try {
-    // Decode JWT without verification (KOauth already verified it)
-    // We just need to check expiration and extract user info
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      return null;
-    }
+async function verifyJwtToken(token: string): Promise<{ id: string; email: string } | null> {
+  const verifiedUser = await verifyJWT(token);
 
-    const payload = JSON.parse(
-      Buffer.from(parts[1]!.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
-    ) as { sub?: string; userId?: string; email?: string; exp?: number };
-
-    // Check if token is expired
-    if (payload.exp && payload.exp < Date.now() / 1000) {
-      logger.debug('JWT token expired', { exp: payload.exp, now: Date.now() / 1000 });
-      return null;
-    }
-
-    return payload;
-  } catch (error) {
-    logger.error('Error verifying JWT token', {
-      error: error instanceof Error ? error.message : String(error),
-    });
+  if (!verifiedUser) {
     return null;
   }
+
+  return {
+    id: verifiedUser.id,
+    email: verifiedUser.email,
+  };
 }
 
 /**
@@ -101,32 +88,30 @@ export async function authMiddleware(
 
   // 1. Try OAuth session authentication (highest priority)
   if (request.session?.accessToken) {
-    const payload = verifyJwtToken(request.session.accessToken);
+    const payload = await verifyJwtToken(request.session.accessToken);
 
     if (payload) {
       // Token is valid
-      const userId = payload.sub || payload.userId;
+      const userId = payload.id;
       const userEmail = payload.email;
 
-      if (userId && userEmail) {
-        // Store user in session for getAuthenticatedUser
-        request.session.user = {
-          id: userId,
-          email: userEmail,
-        };
+      // Store user in session for getAuthenticatedUser
+      request.session.user = {
+        id: userId,
+        email: userEmail,
+      };
 
-        logger.debug('OAuth session authentication successful', {
-          method: request.method,
-          url: request.url,
-          userId,
-          email: userEmail,
-        });
-        return;
-      }
+      logger.debug('OAuth session authentication successful', {
+        method: request.method,
+        url: request.url,
+        userId,
+        email: userEmail,
+      });
+      return;
     } else {
-      // Token expired - try refresh
+      // Token expired or invalid - try refresh
       if (request.session.refreshToken) {
-        logger.debug('Access token expired, attempting refresh');
+        logger.debug('Access token invalid, attempting refresh');
 
         const newTokens = await refreshOAuthToken(request.session.refreshToken);
         if (newTokens) {
@@ -134,24 +119,22 @@ export async function authMiddleware(
           request.session.accessToken = newTokens.access_token;
           request.session.refreshToken = newTokens.refresh_token;
 
-          // Decode new access token
-          const newPayload = verifyJwtToken(newTokens.access_token);
+          // Verify new access token
+          const newPayload = await verifyJwtToken(newTokens.access_token);
           if (newPayload) {
-            const userId = newPayload.sub || newPayload.userId;
+            const userId = newPayload.id;
             const userEmail = newPayload.email;
 
-            if (userId && userEmail) {
-              request.session.user = {
-                id: userId,
-                email: userEmail,
-              };
+            request.session.user = {
+              id: userId,
+              email: userEmail,
+            };
 
-              logger.info('OAuth token refreshed successfully', {
-                userId,
-                email: userEmail,
-              });
-              return;
-            }
+            logger.info('OAuth token refreshed successfully', {
+              userId,
+              email: userEmail,
+            });
+            return;
           }
         }
 

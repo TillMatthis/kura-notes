@@ -198,14 +198,52 @@ export function protectRoute() {
 }
 
 /**
- * Validate API key with KOauth service (async)
+ * Validate API key with JWT verification or KOauth service (async)
  * For programmatic access (iOS Shortcuts, scripts, MCP server)
+ *
+ * API keys can now be JWT tokens (format: eyJ...) or legacy opaque tokens
  */
 export async function validateApiKey(apiKey: string): Promise<KOauthUser | null> {
   if (!koauthConfig) {
     logger.error('KOauth not initialized');
     return null;
   }
+
+  // Import JWT verifier dynamically to avoid circular dependencies
+  const { verifyJWT, isJWT } = await import('./jwt-verifier.js');
+
+  // Check if API key is a JWT token
+  if (isJWT(apiKey)) {
+    // New JWT-based API key - verify signature and claims
+    logger.debug('API key is JWT format, verifying signature');
+
+    const verifiedUser = await verifyJWT(apiKey);
+
+    if (!verifiedUser) {
+      logger.warn('JWT API key verification failed');
+      return null;
+    }
+
+    // Validate that this is an API key token (not an access token)
+    if (verifiedUser.tokenType !== 'api_key') {
+      logger.warn('JWT token has wrong type for API key', { type: verifiedUser.tokenType });
+      return null;
+    }
+
+    logger.info('JWT API key validated successfully', {
+      userId: verifiedUser.id,
+      email: verifiedUser.email,
+      jti: verifiedUser.jti,
+    });
+
+    return {
+      id: verifiedUser.id,
+      email: verifiedUser.email,
+    };
+  }
+
+  // Legacy opaque API key - validate with KOauth service
+  logger.debug('API key is legacy format, validating with KOauth service');
 
   try {
     const response = await fetch(`${koauthConfig.baseUrl}/api/validate-key`, {
@@ -236,7 +274,7 @@ export async function validateApiKey(apiKey: string): Promise<KOauthUser | null>
       return null;
     }
 
-    logger.info('API key validated successfully', { userId: data.userId, email: data.email });
+    logger.info('Legacy API key validated successfully', { userId: data.userId, email: data.email });
 
     return {
       id: data.userId,

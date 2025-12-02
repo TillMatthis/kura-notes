@@ -11,7 +11,7 @@ import { FileStorageService } from '../../services/fileStorage.js';
 import { VectorStoreService } from '../../services/vectorStore.js';
 import { ApiErrors } from '../types/errors.js';
 import type { ContentType } from '../../models/content.js';
-import { getAuthenticatedUser, getOptionalUser } from '../middleware/auth.js';
+import { getAuthenticatedUser } from '../middleware/auth.js';
 
 /**
  * Content metadata for recent items list
