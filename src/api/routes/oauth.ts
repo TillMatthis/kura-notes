@@ -7,6 +7,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
+import { verifyJWT } from '../../lib/jwt-verifier.js';
 
 /**
  * Session type augmentation for TypeScript
@@ -192,25 +193,17 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
         expiresIn: tokens.expires_in,
       });
 
-      // Decode access token to get user info (JWT without verification)
-      // KOauth has already verified the token, we just need to extract user info
-      const accessTokenParts = tokens.access_token.split('.');
-      if (accessTokenParts.length !== 3) {
-        logger.error('Invalid access token format');
-        return reply.status(400).send({ error: 'Invalid token format' });
+      // Verify access token with RS256 signature and claim validation
+      // SECURITY: This now performs proper signature verification using KOauth's public key
+      const verifiedUser = await verifyJWT(tokens.access_token);
+
+      if (!verifiedUser) {
+        logger.error('Failed to verify access token');
+        return reply.status(400).send({ error: 'Invalid token' });
       }
 
-      const payload = JSON.parse(
-        Buffer.from(accessTokenParts[1]!.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
-      ) as { sub?: string; userId?: string; email?: string };
-
-      const userId = payload.sub || payload.userId;
-      const userEmail = payload.email;
-
-      if (!userId || !userEmail) {
-        logger.error('Token payload missing required user fields', { payload });
-        return reply.status(400).send({ error: 'Invalid token payload' });
-      }
+      const userId = verifiedUser.id;
+      const userEmail = verifiedUser.email;
 
       // Check if email is allowed (whitelist check)
       if (!isEmailAllowed(userEmail)) {

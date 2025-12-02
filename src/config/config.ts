@@ -23,6 +23,8 @@ export interface Config {
   // KOauth Authentication
   koauthUrl: string;
   koauthTimeout: number;
+  koauthIssuer?: string;  // JWT issuer (defaults to koauthUrl if not set)
+  koauthJwksUrl?: string; // JWKS endpoint (defaults to koauthUrl/.well-known/jwks.json)
 
   // OAuth 2.0 Configuration (optional - required only for OAuth flow)
   oauthClientId?: string;
@@ -143,6 +145,8 @@ export function loadConfig(): Config {
     // KOauth Authentication
     koauthUrl: getEnv('KOAUTH_URL', 'https://auth.tillmaessen.de'),
     koauthTimeout: getEnvInt('KOAUTH_TIMEOUT', 5000),
+    koauthIssuer: getOptionalEnv('KOAUTH_ISSUER'), // Defaults to koauthUrl if not set
+    koauthJwksUrl: getOptionalEnv('KOAUTH_JWKS_URL'), // Defaults to koauthUrl/.well-known/jwks.json
 
     // OAuth 2.0 Configuration (optional)
     oauthClientId: getOptionalEnv('OAUTH_CLIENT_ID'),
@@ -313,6 +317,8 @@ export function printConfig(config: Config): void {
     apiKey: maskSecret(config.apiKey) + ' (deprecated)',
     koauthUrl: config.koauthUrl,
     koauthTimeout: `${config.koauthTimeout}ms`,
+    koauthIssuer: config.koauthIssuer || '<defaults to koauthUrl>',
+    koauthJwksUrl: config.koauthJwksUrl || '<defaults to koauthUrl/.well-known/jwks.json>',
     oauthClientId: config.oauthClientId,
     oauthClientSecret: maskSecret(config.oauthClientSecret),
     oauthRedirectUri: config.oauthRedirectUri,
