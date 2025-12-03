@@ -8,6 +8,89 @@ The reverse proxy (Caddy/Nginx) cannot reach the KOauth backend service on port 
 
 ---
 
+## 🔥 MOST COMMON ISSUE: EACCES Permission Error
+
+### Symptoms
+KOauth container exits immediately with error:
+```
+EACCES: permission denied, mkdir '/app/keys'
+koauth-app exited with code 1
+```
+
+### Root Cause
+KOauth needs to create `/app/keys` directory to store RSA key pairs for JWT signing, but lacks write permissions.
+
+### ✅ PERMANENT FIX
+
+**1. Navigate to your KOauth directory:**
+```bash
+cd /path/to/koauth  # Where your docker-compose.yml is located
+```
+
+**2. Create keys directory:**
+```bash
+mkdir -p ./keys
+chmod 777 ./keys  # Allow container to write
+```
+
+**3. Update `docker-compose.yml` to mount the directory:**
+
+Add this volume mount to your KOauth service:
+
+```yaml
+services:
+  koauth-app:  # or whatever your service is named
+    # ... existing configuration ...
+    volumes:
+      - ./keys:/app/keys  # ← ADD THIS LINE
+      # ... other volumes if any ...
+```
+
+**Full example:**
+```yaml
+services:
+  koauth-app:
+    image: koauth:latest
+    container_name: koauth-app
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./keys:/app/keys  # Mount keys directory
+    environment:
+      - DATABASE_URL=postgresql://koauth:${KOAUTH_DB_PASSWORD}@postgres:5432/koauth
+      - SESSION_SECRET=${KOAUTH_SESSION_SECRET}
+      - BASE_URL=${KOAUTH_BASE_URL}
+      - ALLOWED_CALLBACKS=${KOAUTH_ALLOWED_CALLBACKS}
+    restart: unless-stopped
+    depends_on:
+      - postgres
+```
+
+**4. Restart KOauth:**
+```bash
+docker compose down koauth-app
+docker compose up -d koauth-app
+
+# Watch logs to confirm it starts successfully
+docker compose logs -f koauth-app
+```
+
+**5. Verify Success:**
+```bash
+# Should see "Server started successfully"
+docker compose logs koauth-app | grep -i "started"
+
+# Test health endpoint
+curl http://localhost:3001/health
+# Expected: {"status":"healthy"}
+
+# Verify keys were created
+ls -la ./keys/
+# Should see: private.key and public.key files
+```
+
+---
+
 ## Step-by-Step Diagnostics
 
 ### 1. Check if KOauth is Running
@@ -176,6 +259,35 @@ sudo ufw allow 3001/tcp
 ---
 
 ## Common Issues and Fixes
+
+### Issue 0: EACCES Permission Error on /app/keys (MOST COMMON)
+
+**Symptoms:**
+- KOauth exits immediately with code 1
+- Logs show: `EACCES: permission denied, mkdir '/app/keys'`
+- Container restarts repeatedly
+
+**Fix:**
+
+See the [**PERMANENT FIX section**](#-permanent-fix) at the top of this document for detailed steps.
+
+**Quick fix:**
+```bash
+cd /path/to/koauth
+mkdir -p ./keys && chmod 777 ./keys
+
+# Add to docker-compose.yml under koauth service:
+#   volumes:
+#     - ./keys:/app/keys
+
+docker compose down koauth-app
+docker compose up -d koauth-app
+```
+
+**Why this happens:**
+KOauth generates RSA key pairs (private.key and public.key) on startup for JWT signing. Without a volume mount, the container lacks permission to create the `/app/keys` directory.
+
+---
 
 ### Issue 1: KOauth Container Not Running
 
