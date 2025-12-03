@@ -123,14 +123,42 @@ export async function verifyJWT(token: string): Promise<VerifiedUser | null> {
       const errorName = error.constructor.name;
       const errorMessage = error.message;
 
-      if (errorName === 'JWTExpired') {
+      // For claim validation failures, decode the JWT to show actual vs expected values
+      if (errorName === 'JWTClaimValidationFailed') {
+        const decoded = unsafeDecodeJWT(token);
+        const expectedIssuer = config.koauthIssuer || config.koauthUrl;
+        const normalizedIssuer = expectedIssuer.endsWith('/')
+          ? expectedIssuer.slice(0, -1)
+          : expectedIssuer;
+
+        logger.warn('JWT claim validation failed - mismatch detected', {
+          error: errorMessage,
+          expected: {
+            issuer: normalizedIssuer,
+            audience: 'kura-notes',
+          },
+          actual: {
+            issuer: decoded?.iss,
+            audience: decoded?.aud,
+          },
+          allClaims: decoded,
+        });
+      } else if (errorName === 'JWTExpired') {
         logger.debug('JWT token expired', { error: errorMessage });
-      } else if (errorName === 'JWTClaimValidationFailed') {
-        logger.warn('JWT claim validation failed', { error: errorMessage });
       } else if (errorName === 'JWSSignatureVerificationFailed') {
-        logger.warn('JWT signature verification failed', { error: errorMessage });
+        logger.warn('JWT signature verification failed', {
+          error: errorMessage,
+          hint: 'Check if JWKS endpoint is accessible and keys match',
+        });
       } else if (errorName === 'JWKSNoMatchingKey') {
-        logger.warn('No matching key in JWKS', { error: errorMessage });
+        const decoded = unsafeDecodeJWT(token);
+        const kid = decoded ? JSON.parse(Buffer.from(token.split('.')[0]!, 'base64url').toString()).kid : null;
+
+        logger.warn('No matching key in JWKS', {
+          error: errorMessage,
+          tokenKid: kid,
+          hint: 'KOauth may have rotated keys. JWKS will be refetched automatically.',
+        });
       } else {
         logger.error('JWT verification error', {
           errorName,

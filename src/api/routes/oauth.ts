@@ -175,13 +175,24 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
 
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
+        let parsedError;
+        try {
+          parsedError = JSON.parse(errorText);
+        } catch {
+          parsedError = errorText;
+        }
+
         logger.error('Token exchange failed', {
           status: tokenResponse.status,
-          error: errorText,
+          error: parsedError,
+          hint: tokenResponse.status === 401
+            ? 'Check OAUTH_CLIENT_SECRET matches the secret registered in KOauth database'
+            : 'Check OAuth client configuration in KOauth',
         });
+
         return reply.status(400).send({
           error: 'Token exchange failed',
-          details: errorText
+          details: parsedError
         });
       }
 
@@ -198,7 +209,15 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
       const verifiedUser = await verifyJWT(tokens.access_token);
 
       if (!verifiedUser) {
-        logger.error('Failed to verify access token');
+        logger.error('Failed to verify access token', {
+          hint: 'Check logs above for JWT verification error details',
+          troubleshooting: {
+            checkJwksEndpoint: `${config.koauthUrl}/.well-known/jwks.json`,
+            checkIssuerMatch: 'Verify JWT_ISSUER in KOauth matches KOAUTH_URL in Kura',
+            checkAudience: 'Ensure JWT_AUDIENCE in KOauth includes "kura-notes"',
+            enableDebugLogging: 'Set LOG_LEVEL=debug in .env for detailed error info',
+          },
+        });
         return reply.status(400).send({ error: 'Invalid token' });
       }
 
