@@ -13,6 +13,12 @@ The KURA MCP server exposes your personal notes through the Model Context Protoc
 
 The server runs as a separate Docker service and communicates with the KURA API internally, exposing a public SSE (Server-Sent Events) endpoint for remote connections.
 
+**Key Features:**
+- ✅ **Secure Authentication:** OAuth 2.0 and API key support via KOauth
+- ✅ **User Isolation:** Each authenticated user only accesses their own notes
+- ✅ **Remote Access:** Exposed via HTTPS for Claude Desktop and other MCP clients
+- ✅ **Integrated Deployment:** Part of kura-notes docker-compose stack
+
 ## Architecture
 
 ```
@@ -40,7 +46,25 @@ The server runs as a separate Docker service and communicates with the KURA API 
 
 ## Deployment
 
-### 1. Start the Services
+### 1. Configure Environment Variables
+
+The MCP server requires KOauth configuration. Add to your `.env` file:
+
+```bash
+# KOauth Configuration (required)
+KOAUTH_URL=https://auth.tillmaessen.de
+KOAUTH_TIMEOUT=5000
+
+# KURA API URL (internal Docker network)
+KURA_API_URL=http://api:3000
+
+# MCP Server Port
+MCP_PORT=3001
+```
+
+**Note:** The MCP server no longer uses a shared `API_KEY`. Each user authenticates with their own OAuth token or API key.
+
+### 2. Start the Services
 
 The MCP server is included in the docker-compose.yml configuration:
 
@@ -55,7 +79,7 @@ docker-compose ps
 docker-compose logs -f mcp
 ```
 
-### 2. Verify the MCP Server
+### 3. Verify the MCP Server
 
 ```bash
 # Check MCP server health
@@ -77,6 +101,20 @@ Expected response:
 
 ## Claude Desktop Configuration
 
+### Authentication
+
+The MCP server requires authentication via OAuth 2.0 access tokens or API keys. You can use either method:
+
+**Option 1: OAuth 2.0 (Recommended for interactive use)**
+- Claude Desktop handles OAuth flow automatically
+- User logs in via KOauth and receives access token
+- Token is automatically included in requests
+
+**Option 2: API Key (For programmatic access)**
+- Generate API key in KOauth dashboard: `https://auth.tillmaessen.de/dashboard`
+- Provide API key to Claude Desktop configuration
+- Key is included in Authorization header
+
 ### Remote Server Setup (Recommended for VPS)
 
 Configure Claude Desktop to connect to your remote KURA MCP server:
@@ -88,7 +126,9 @@ Configure Claude Desktop to connect to your remote KURA MCP server:
 
 2. **Add KURA MCP Server Configuration**
 
-Edit `claude_desktop_config.json` and add the MCP server:
+**For OAuth 2.0 (Recommended):**
+
+Edit `claude_desktop_config.json` and add the MCP server with OAuth:
 
 ```json
 {
@@ -97,11 +137,42 @@ Edit `claude_desktop_config.json` and add the MCP server:
       "url": "https://kura.tillmaessen.de/mcp/sse",
       "transport": {
         "type": "sse"
+      },
+      "oauth": {
+        "clientId": "your-oauth-client-id",
+        "clientSecret": "your-oauth-client-secret",
+        "authorizationUrl": "https://auth.tillmaessen.de/oauth/authorize",
+        "tokenUrl": "https://auth.tillmaessen.de/oauth/token"
       }
     }
   }
 }
 ```
+
+**For API Key:**
+
+```json
+{
+  "mcpServers": {
+    "kura-notes": {
+      "url": "https://kura.tillmaessen.de/mcp/sse",
+      "transport": {
+        "type": "sse"
+      },
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+**Getting Your API Key:**
+1. Log in to KOauth dashboard: `https://auth.tillmaessen.de/dashboard`
+2. Navigate to "API Keys" section
+3. Click "New Key" and enter a descriptive name
+4. Copy the generated key (you won't see it again!)
+5. Use it in the `Authorization` header above
 
 3. **Restart Claude Desktop**
 
@@ -118,11 +189,16 @@ If you're running KURA locally (not on a VPS), use:
       "url": "http://localhost:3001/sse",
       "transport": {
         "type": "sse"
+      },
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY_HERE"
       }
     }
   }
 }
 ```
+
+**Note:** In development mode, you can also use test headers if the KURA API is running in non-production mode, but API keys are recommended for consistency.
 
 ## Available Tools
 
@@ -302,7 +378,11 @@ and content 'Discussed Q1 goals: improve API performance, add new features...'"
 
 ## Security Considerations
 
-1. **Authentication:** The MCP server uses the same `API_KEY` as the KURA API for authentication. Make sure this key is kept secret.
+1. **Authentication:** 
+   - All connections require authentication via OAuth access tokens or API keys
+   - Each user's requests are isolated - users can only access their own notes
+   - API keys should be kept secret and never shared
+   - Revoke compromised API keys immediately in KOauth dashboard
 
 2. **HTTPS:** When deployed on a VPS, system Caddy automatically handles HTTPS with Let's Encrypt certificates.
 
@@ -315,6 +395,12 @@ and content 'Discussed Q1 goals: improve API performance, add new features...'"
    ```
 
 4. **Rate Limiting:** Consider adding rate limiting in system Caddy if you expose the MCP server publicly.
+
+5. **Token Security:**
+   - OAuth tokens expire automatically (check KOauth configuration)
+   - API keys are long-lived - revoke if compromised
+   - Never log tokens or API keys
+   - Use HTTPS for all connections in production
 
 ## Troubleshooting
 
@@ -359,11 +445,36 @@ If SSE connections are timing out:
 
 If you get 401/403 errors:
 
-1. Verify the `API_KEY` environment variable is set correctly in `.env`
-2. Check that the MCP server can reach the API service:
+1. **Check Authorization Header:**
+   - Verify you're providing a valid OAuth token or API key
+   - Format: `Authorization: Bearer <token-or-key>`
+   - Ensure token hasn't expired (OAuth tokens expire)
+
+2. **Verify API Key:**
+   - Test your API key with KOauth validation endpoint:
+     ```bash
+     curl -X POST https://auth.tillmaessen.de/api/validate-key \
+       -H "Content-Type: application/json" \
+       -d '{"apiKey": "YOUR_API_KEY"}'
+     ```
+   - Should return `{"valid": true, "userId": "...", "email": "..."}`
+
+3. **Check KOauth Configuration:**
+   - Verify `KOAUTH_URL` environment variable is set correctly
+   - Ensure KOauth server is accessible from MCP server
+   - Check KOauth logs for validation errors
+
+4. **Verify Internal API Connection:**
    ```bash
    docker-compose exec mcp wget -O- http://api:3000/api/health
    ```
+
+5. **Check MCP Server Logs:**
+   ```bash
+   docker-compose logs mcp | grep -i auth
+   ```
+   - Look for authentication errors or warnings
+   - Verify user context is being stored correctly
 
 ## Development
 
