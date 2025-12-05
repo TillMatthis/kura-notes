@@ -69,8 +69,9 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - MCP_PORT=3001
-      - API_KEY=${API_KEY}
       - KURA_API_URL=http://api:3000
+      - KOAUTH_URL=${KOAUTH_URL:-https://auth.tillmaessen.de}
+      - KOAUTH_TIMEOUT=${KOAUTH_TIMEOUT:-5000}
     depends_on:
       api:
         condition: service_healthy

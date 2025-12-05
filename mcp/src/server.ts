@@ -15,6 +15,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import express, { Request, Response as ExpressResponse } from 'express';
 import dotenv from 'dotenv';
+import { initAuth, authenticate, type AuthenticatedUser } from './auth.js';
 
 // Load environment variables
 dotenv.config({ path: '../.env' });
@@ -22,27 +23,23 @@ dotenv.config({ path: '../.env' });
 // Configuration
 const PORT = parseInt(process.env.MCP_PORT || '3001', 10);
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const API_KEY = process.env.API_KEY;
 const KURA_API_URL = process.env.KURA_API_URL || 'http://api:3000';
+const KOAUTH_URL = process.env.KOAUTH_URL || 'https://auth.tillmaessen.de';
+const KOAUTH_TIMEOUT = parseInt(process.env.KOAUTH_TIMEOUT || '5000', 10);
 
-// API_KEY validation and warnings
-if (!API_KEY) {
-  console.warn('⚠️  WARNING: API_KEY environment variable is not set');
-  console.warn('');
-  if (NODE_ENV === 'production') {
-    console.warn('Running in PRODUCTION mode without API_KEY:');
-    console.warn('  - API requests will likely fail with authentication errors');
-    console.warn('  - API key authentication with KOauth is not yet fully implemented');
-    console.warn('  - Consider setting up session-based auth or API key with KOauth');
-    console.warn('');
-    console.warn('MCP server will start but may not function properly.');
-  } else {
-    console.warn('Running in DEVELOPMENT mode without API_KEY:');
-    console.warn('  - Using test user headers for authentication (x-test-user-id)');
-    console.warn('  - This only works in non-production KURA API environments');
-  }
-  console.warn('');
-}
+// Initialize authentication module
+initAuth({
+  baseUrl: KOAUTH_URL,
+  timeout: KOAUTH_TIMEOUT,
+});
+
+console.log('MCP Server Configuration:', {
+  port: PORT,
+  nodeEnv: NODE_ENV,
+  kuraApiUrl: KURA_API_URL,
+  koauthUrl: KOAUTH_URL,
+  koauthTimeout: KOAUTH_TIMEOUT,
+});
 
 // Type definitions for KURA API responses
 interface KuraSearchResult {
@@ -100,29 +97,39 @@ interface KuraDeleteResponse {
 }
 
 /**
+ * User context storage per SSE connection
+ * Maps connection ID to authenticated user
+ */
+const userContextMap = new Map<string, AuthenticatedUser>();
+
+/**
  * Make authenticated request to KURA API
  */
 async function callKuraAPI(
   endpoint: string,
+  user: AuthenticatedUser | null,
   options: RequestInit = {}
 ): Promise<Response> {
   const url = `${KURA_API_URL}${endpoint}`;
 
-  // Build headers based on authentication method
+  // Build headers
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
   };
 
-  if (API_KEY) {
-    // Use API key authentication (when KOauth API key validation is implemented)
-    headers['Authorization'] = `Bearer ${API_KEY}`;
-  } else {
-    // No API_KEY set: Use test headers
+  if (user) {
+    // Use authenticated user's token
+    headers['Authorization'] = `Bearer ${user.token}`;
+  } else if (NODE_ENV !== 'production') {
+    // Development fallback: Use test headers
     // NOTE: This only works if the KURA API is running in non-production mode
-    // because koauth-client.ts only accepts test headers when NODE_ENV !== 'production'
     headers['x-test-user-id'] = 'mcp-test-user';
     headers['x-test-user-email'] = 'mcp@test.local';
+  } else {
+    // Production without authentication - this should not happen
+    console.error('Attempting to call KURA API without authentication in production');
+    throw new Error('Authentication required');
   }
 
   const response = await fetch(url, {
@@ -134,9 +141,16 @@ async function callKuraAPI(
 }
 
 /**
+ * Get authenticated user from connection context
+ */
+function getUserFromContext(connectionId: string): AuthenticatedUser | null {
+  return userContextMap.get(connectionId) || null;
+}
+
+/**
  * Initialize MCP Server
  */
-function createMCPServer(): Server {
+function createMCPServer(connectionId: string): Server {
   const server = new Server(
     {
       name: 'kura-notes',
@@ -258,6 +272,27 @@ function createMCPServer(): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
+    // Get authenticated user from connection context
+    const user = getUserFromContext(connectionId);
+
+    if (!user) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                error: 'Authentication required. Please provide a valid OAuth token or API key in the Authorization header.',
+              },
+              null,
+              2
+            ),
+          },
+        ],
+        isError: true,
+      };
+    }
+
     try {
       switch (name) {
         case 'kura_search': {
@@ -277,7 +312,7 @@ function createMCPServer(): Server {
           if (contentType) params.append('contentType', contentType);
           if (tags) params.append('tags', tags);
 
-          const response = await callKuraAPI(`/api/search?${params}`);
+          const response = await callKuraAPI(`/api/search?${params}`, user);
 
           if (!response.ok) {
             const error = await response.text();
@@ -313,16 +348,20 @@ function createMCPServer(): Server {
             tags?: string[];
           };
 
-          const response = await callKuraAPI('/api/capture', {
-            method: 'POST',
-            body: JSON.stringify({
-              content,
-              title,
-              annotation,
-              tags,
-              contentType: 'text',
-            }),
-          });
+          const response = await callKuraAPI(
+            '/api/capture',
+            user,
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                content,
+                title,
+                annotation,
+                tags,
+                contentType: 'text',
+              }),
+            }
+          );
 
           if (!response.ok) {
             const error = await response.text();
@@ -356,7 +395,7 @@ function createMCPServer(): Server {
             throw new Error('Note ID is required');
           }
 
-          const response = await callKuraAPI(`/api/content/${id}`);
+          const response = await callKuraAPI(`/api/content/${id}`, user);
 
           if (!response.ok) {
             if (response.status === 404) {
@@ -393,7 +432,7 @@ function createMCPServer(): Server {
         }
 
         case 'kura_list_recent': {
-          const response = await callKuraAPI('/api/content/recent');
+          const response = await callKuraAPI('/api/content/recent', user);
 
           if (!response.ok) {
             const error = await response.text();
@@ -429,9 +468,13 @@ function createMCPServer(): Server {
             throw new Error('Note ID is required');
           }
 
-          const response = await callKuraAPI(`/api/content/${id}`, {
-            method: 'DELETE',
-          });
+          const response = await callKuraAPI(
+            `/api/content/${id}`,
+            user,
+            {
+              method: 'DELETE',
+            }
+          );
 
           if (!response.ok) {
             if (response.status === 404) {
@@ -467,6 +510,15 @@ function createMCPServer(): Server {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
+      
+      // Log error for debugging (but don't log tokens)
+      console.error(`Tool call error for ${name}:`, {
+        error: errorMessage,
+        userId: user?.id,
+        hasUser: !!user,
+      });
+
+      // Return user-friendly error message
       return {
         content: [
           {
@@ -474,6 +526,7 @@ function createMCPServer(): Server {
             text: JSON.stringify(
               {
                 error: errorMessage,
+                tool: name,
               },
               null,
               2
@@ -493,7 +546,6 @@ function createMCPServer(): Server {
  */
 async function main() {
   const app = express();
-  const mcpServer = createMCPServer();
 
   // Health check endpoint
   app.get('/health', (_req: Request, res: ExpressResponse) => {
@@ -505,16 +557,47 @@ async function main() {
     });
   });
 
-  // SSE endpoint for MCP
+  // SSE endpoint for MCP with authentication
   app.get('/sse', async (req: Request, res: ExpressResponse) => {
-    console.log('New SSE connection from:', req.ip);
+    // Extract Authorization header
+    const authHeader = req.headers.authorization;
 
+    // Authenticate the request
+    const user = await authenticate(authHeader);
+
+    if (!user) {
+      console.warn('Unauthenticated SSE connection attempt from:', req.ip);
+      res.status(401).json({
+        error: 'Authentication required',
+        message: 'Please provide a valid OAuth token or API key in the Authorization header.',
+      });
+      return;
+    }
+
+    console.log('Authenticated SSE connection from:', req.ip, {
+      userId: user.id,
+      email: user.email,
+      tokenType: user.tokenType,
+    });
+
+    // Generate unique connection ID
+    const connectionId = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    // Store user context for this connection
+    userContextMap.set(connectionId, user);
+
+    // Create MCP server instance for this connection
+    const mcpServer = createMCPServer(connectionId);
+
+    // Set up SSE transport
     const transport = new SSEServerTransport('/message', res);
     await mcpServer.connect(transport);
 
     // Handle connection close
     req.on('close', () => {
-      console.log('SSE connection closed:', req.ip);
+      console.log('SSE connection closed:', req.ip, { userId: user.id });
+      // Clean up user context
+      userContextMap.delete(connectionId);
     });
   });
 
@@ -527,10 +610,12 @@ async function main() {
 
   // Start server
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`KURA MCP Server running on port ${PORT}`);
-    console.log(`SSE endpoint: http://localhost:${PORT}/sse`);
-    console.log(`Health check: http://localhost:${PORT}/health`);
-    console.log(`KURA API URL: ${KURA_API_URL}`);
+    console.log(`✅ KURA MCP Server running on port ${PORT}`);
+    console.log(`   SSE endpoint: http://localhost:${PORT}/sse`);
+    console.log(`   Health check: http://localhost:${PORT}/health`);
+    console.log(`   KURA API URL: ${KURA_API_URL}`);
+    console.log(`   KOauth URL: ${KOAUTH_URL}`);
+    console.log(`   Authentication: Required (OAuth token or API key)`);
   });
 }
 
