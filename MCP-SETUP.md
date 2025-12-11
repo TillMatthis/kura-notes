@@ -11,20 +11,41 @@ The KURA MCP server exposes your personal notes through the Model Context Protoc
 - List recent notes
 - Delete notes
 
-The server runs as a separate Docker service and communicates with the KURA API internally, exposing a public SSE (Server-Sent Events) endpoint for remote connections.
+The server provides two transport options:
+- **STDIO transport** (`server-stdio.ts`): Required for Claude Desktop (Claude Desktop does NOT support SSE)
+- **SSE transport** (`server.ts`): Available for other MCP clients that support Server-Sent Events
 
 **Key Features:**
 - ✅ **Secure Authentication:** OAuth 2.0 and API key support via KOauth
 - ✅ **User Isolation:** Each authenticated user only accesses their own notes
-- ✅ **Remote Access:** Exposed via HTTPS for Claude Desktop and other MCP clients
+- ✅ **STDIO Support:** Native support for Claude Desktop via STDIO transport
+- ✅ **SSE Support:** Optional SSE transport for other MCP clients
 - ✅ **Integrated Deployment:** Part of kura-notes docker-compose stack
 
 ## Architecture
+
+### For Claude Desktop (STDIO):
 
 ```
 ┌──────────────────┐
 │ Claude Desktop   │
 │   (MCP Client)   │
+└────────┬─────────┘
+         │ STDIO (stdin/stdout)
+         ↓
+┌──────────────────┐      ┌──────────────────┐
+│ STDIO MCP Server │─────→│   KURA API       │
+│ (server-stdio.js)│      │  (Port 3000)     │
+│   Local/Remote   │      │   Docker         │
+└──────────────────┘      └──────────────────┘
+```
+
+### For Other MCP Clients (SSE):
+
+```
+┌──────────────────┐
+│  MCP Client      │
+│  (SSE Support)  │
 └────────┬─────────┘
          │ HTTPS/SSE
          ↓
@@ -36,7 +57,7 @@ The server runs as a separate Docker service and communicates with the KURA API 
          │
          ↓
 ┌──────────────────┐      ┌──────────────────┐
-│   MCP Server     │─────→│   KURA API       │
+│   SSE MCP Server │─────→│   KURA API       │
 │  (Port 3001)     │      │  (Port 3000)     │
 │   Docker         │      │   Docker         │
 └──────────────────┘      └──────────────────┘
@@ -101,104 +122,115 @@ Expected response:
 
 ## Claude Desktop Configuration
 
-### Authentication
+### ⚠️ Important: Claude Desktop Does NOT Support SSE
 
-The MCP server requires authentication via OAuth 2.0 access tokens or API keys. You can use either method:
+**Claude Desktop only supports STDIO transport**, not SSE (Server-Sent Events). The SSE server (`server.ts`) is available for other MCP clients that support it, but **Claude Desktop requires the STDIO version** (`server-stdio.ts`).
 
-**Option 1: OAuth 2.0 (Recommended for interactive use)**
-- Claude Desktop handles OAuth flow automatically
-- User logs in via KOauth and receives access token
-- Token is automatically included in requests
+### Prerequisites
 
-**Option 2: API Key (For programmatic access)**
-- Generate API key in KOauth dashboard: `https://auth.tillmaessen.de/dashboard`
-- Provide API key to Claude Desktop configuration
-- Key is included in Authorization header
+Before configuring Claude Desktop, you need an **API Key** from KOauth:
 
-### Remote Server Setup (Recommended for VPS)
+1. **Log in to KOauth Dashboard:**
+   - URL: `https://auth.tillmaessen.de/dashboard`
+   - Sign in with your Google/GitHub account
 
-Configure Claude Desktop to connect to your remote KURA MCP server:
+2. **Generate API Key:**
+   - Navigate to "API Keys" section
+   - Click "New Key"
+   - Enter a descriptive name (e.g., "Claude Desktop MCP")
+   - **Copy the generated key immediately** (you won't see it again!)
 
-1. **Locate Claude Desktop Config**
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-   - Linux: `~/.config/Claude/claude_desktop_config.json`
+### Configuration Steps
 
-2. **Add KURA MCP Server Configuration**
+1. **Locate Claude Desktop Config File:**
+   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-**For OAuth 2.0 (Recommended):**
+2. **Build the STDIO Server:**
 
-Edit `claude_desktop_config.json` and add the MCP server with OAuth:
+   First, ensure the STDIO server is built:
+
+   ```bash
+   cd mcp
+   npm install
+   npm run build
+   ```
+
+   This creates `mcp/dist/server-stdio.js` which Claude Desktop will run.
+
+3. **Configure Claude Desktop:**
+
+   Edit `claude_desktop_config.json` and add:
+
+   ```json
+   {
+     "mcpServers": {
+       "kura-notes": {
+         "command": "node",
+         "args": ["/absolute/path/to/kura-notes/mcp/dist/server-stdio.js"],
+         "env": {
+           "API_KEY": "YOUR_API_KEY_HERE",
+           "KURA_API_URL": "https://kura.tillmaessen.de",
+           "KOAUTH_URL": "https://auth.tillmaessen.de"
+         }
+       }
+     }
+   }
+   ```
+
+   **Important:**
+   - Replace `/absolute/path/to/kura-notes` with the **absolute path** to your kura-notes directory
+   - Replace `YOUR_API_KEY_HERE` with the API key you generated from KOauth
+   - For local development, use `"KURA_API_URL": "http://localhost:3000"` instead
+
+4. **Restart Claude Desktop:**
+
+   - Quit Claude Desktop completely
+   - Reopen Claude Desktop
+   - The MCP server should now be connected
+
+### Example Configuration (macOS)
+
+If your project is at `/Users/tillmaessen/Documents/GitHub/kura-notes`:
 
 ```json
 {
   "mcpServers": {
     "kura-notes": {
-      "url": "https://kura.tillmaessen.de/mcp/sse",
-      "transport": {
-        "type": "sse"
-      },
-      "oauth": {
-        "clientId": "your-oauth-client-id",
-        "clientSecret": "your-oauth-client-secret",
-        "authorizationUrl": "https://auth.tillmaessen.de/oauth/authorize",
-        "tokenUrl": "https://auth.tillmaessen.de/oauth/token"
+      "command": "node",
+      "args": ["/Users/tillmaessen/Documents/GitHub/kura-notes/mcp/dist/server-stdio.js"],
+      "env": {
+        "API_KEY": "your-actual-api-key-here",
+        "KURA_API_URL": "https://kura.tillmaessen.de",
+        "KOAUTH_URL": "https://auth.tillmaessen.de"
       }
     }
   }
 }
 ```
 
-**For API Key:**
+### Local Development Setup
+
+If you're running KURA locally (not on VPS):
 
 ```json
 {
   "mcpServers": {
     "kura-notes": {
-      "url": "https://kura.tillmaessen.de/mcp/sse",
-      "transport": {
-        "type": "sse"
-      },
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY_HERE"
+      "command": "node",
+      "args": ["/absolute/path/to/kura-notes/mcp/dist/server-stdio.js"],
+      "env": {
+        "API_KEY": "YOUR_API_KEY_HERE",
+        "KURA_API_URL": "http://localhost:3000",
+        "KOAUTH_URL": "https://auth.tillmaessen.de"
       }
     }
   }
 }
 ```
 
-**Getting Your API Key:**
-1. Log in to KOauth dashboard: `https://auth.tillmaessen.de/dashboard`
-2. Navigate to "API Keys" section
-3. Click "New Key" and enter a descriptive name
-4. Copy the generated key (you won't see it again!)
-5. Use it in the `Authorization` header above
-
-3. **Restart Claude Desktop**
-
-After saving the configuration, restart Claude Desktop for the changes to take effect.
-
-### Alternative: Local Development Setup
-
-If you're running KURA locally (not on a VPS), use:
-
-```json
-{
-  "mcpServers": {
-    "kura-notes": {
-      "url": "http://localhost:3001/sse",
-      "transport": {
-        "type": "sse"
-      },
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY_HERE"
-      }
-    }
-  }
-}
-```
-
-**Note:** In development mode, you can also use test headers if the KURA API is running in non-production mode, but API keys are recommended for consistency.
+**Note:** Even for local development, you still need a valid API key from KOauth. The API key authenticates you to access your notes.
 
 ## Available Tools
 
@@ -419,62 +451,68 @@ docker-compose restart mcp
 
 ### Claude Desktop Can't Connect
 
-1. Check that the MCP server is accessible:
+1. **Verify the STDIO server is built:**
    ```bash
-   curl https://kura.tillmaessen.de/mcp/health
+   cd mcp
+   npm run build
+   ls -la dist/server-stdio.js  # Should exist
    ```
 
-2. Verify your `claude_desktop_config.json` is valid JSON
+2. **Check that the path in `claude_desktop_config.json` is absolute:**
+   - Use absolute path, not relative path
+   - Example: `/Users/username/path/to/kura-notes/mcp/dist/server-stdio.js`
+   - Not: `./mcp/dist/server-stdio.js` or `~/path/to/...`
 
-3. Check Claude Desktop logs:
+3. **Verify your `claude_desktop_config.json` is valid JSON:**
+   - Use a JSON validator if needed
+   - Ensure all strings are properly quoted
+
+4. **Check that Node.js is in PATH:**
+   ```bash
+   which node  # Should return path to node executable
+   ```
+
+5. **Check Claude Desktop logs:**
    - macOS: `~/Library/Logs/Claude/`
    - Windows: `%APPDATA%\Claude\logs\`
    - Linux: `~/.config/Claude/logs/`
+   - Look for errors related to the MCP server startup
 
-4. Restart Claude Desktop completely (not just reload)
+6. **Test the STDIO server manually:**
+   ```bash
+   cd mcp
+   API_KEY="your-api-key" KURA_API_URL="https://kura.tillmaessen.de" node dist/server-stdio.js
+   ```
+   - Should start without errors (will wait for input on stdin)
+   - Press Ctrl+C to exit
 
-### SSE Connection Issues
-
-If SSE connections are timing out:
-
-1. Check that system Caddy is properly configured for the MCP endpoint (see DEPLOYMENT.md for Caddyfile configuration)
-2. Verify no intermediate proxies are buffering the connection
-3. Check firewall rules allow long-lived connections
+7. **Restart Claude Desktop completely** (not just reload)
 
 ### Authentication Errors
 
-If you get 401/403 errors:
+If you get authentication errors:
 
-1. **Check Authorization Header:**
-   - Verify you're providing a valid OAuth token or API key
-   - Format: `Authorization: Bearer <token-or-key>`
-   - Ensure token hasn't expired (OAuth tokens expire)
+1. **Verify API Key is Set:**
+   - Check that `API_KEY` is set in the `env` section of `claude_desktop_config.json`
+   - Ensure there are no extra spaces or quotes around the key
 
-2. **Verify API Key:**
-   - Test your API key with KOauth validation endpoint:
-     ```bash
-     curl -X POST https://auth.tillmaessen.de/api/validate-key \
-       -H "Content-Type: application/json" \
-       -d '{"apiKey": "YOUR_API_KEY"}'
-     ```
+2. **Test Your API Key:**
+   ```bash
+   curl -X POST https://auth.tillmaessen.de/api/validate-key \
+     -H "Content-Type: application/json" \
+     -d '{"apiKey": "YOUR_API_KEY"}'
+   ```
    - Should return `{"valid": true, "userId": "...", "email": "..."}`
+   - If invalid, generate a new key from KOauth dashboard
 
-3. **Check KOauth Configuration:**
-   - Verify `KOAUTH_URL` environment variable is set correctly
-   - Ensure KOauth server is accessible from MCP server
-   - Check KOauth logs for validation errors
+3. **Check Environment Variables:**
+   - Verify `KOAUTH_URL` is set correctly in Claude Desktop config
+   - For local development, ensure `KURA_API_URL` points to your local API
 
-4. **Verify Internal API Connection:**
-   ```bash
-   docker-compose exec mcp wget -O- http://api:3000/api/health
-   ```
-
-5. **Check MCP Server Logs:**
-   ```bash
-   docker-compose logs mcp | grep -i auth
-   ```
+4. **Check STDIO Server Logs:**
+   - The STDIO server logs to stderr (not stdout)
+   - Check Claude Desktop logs for stderr output from the MCP server
    - Look for authentication errors or warnings
-   - Verify user context is being stored correctly
 
 ## Development
 
