@@ -3,8 +3,14 @@
 /**
  * KURA Notes - Remote MCP Server
  *
- * Exposes KURA Notes API through Model Context Protocol (MCP) using SSE transport.
- * This allows AI assistants like Claude Desktop to interact with your notes remotely.
+ * Exposes KURA Notes API through Model Context Protocol (MCP) using Streamable HTTP transport (SSE).
+ * Supports both Claude Desktop (via STDIO) and Claude mobile Custom Connectors (via SSE with OAuth autodiscovery).
+ *
+ * Features:
+ * - OAuth 2.1 Resource Server (validates bearer tokens)
+ * - OAuth autodiscovery via /.well-known/oauth-protected-resource
+ * - Streamable HTTP transport (SSE) for remote connections
+ * - User isolation via KOauth authentication
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -26,6 +32,9 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const KURA_API_URL = process.env.KURA_API_URL || 'http://api:3000';
 const KOAUTH_URL = process.env.KOAUTH_URL || 'https://auth.tillmaessen.de';
 const KOAUTH_TIMEOUT = parseInt(process.env.KOAUTH_TIMEOUT || '5000', 10);
+const MCP_BASE_URL = process.env.MCP_BASE_URL || ''; 
+// e.g., https://kura.tillmaessen.de/mcp
+// If not set, will infer from request headers
 
 // Initialize authentication module
 initAuth({
@@ -557,7 +566,21 @@ async function main() {
     });
   });
 
+  // OAuth Protected Resource Discovery endpoint
+  // This enables Claude Custom Connectors to automatically discover OAuth configuration
+  app.get('/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
+    // Determine base URL from request or environment variable
+    const baseUrl = MCP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    
+    res.json({
+      resource: `${baseUrl}/sse`,  // The protected MCP endpoint
+      authorization_servers: [KOAUTH_URL],  // KOauth server URL
+      scopes_supported: ['openid', 'profile', 'email']
+    });
+  });
+
   // SSE endpoint for MCP with authentication
+  // This endpoint supports OAuth autodiscovery via WWW-Authenticate header
   app.get('/sse', async (req: Request, res: ExpressResponse) => {
     // Extract Authorization header
     const authHeader = req.headers.authorization;
@@ -567,10 +590,19 @@ async function main() {
 
     if (!user) {
       console.warn('Unauthenticated SSE connection attempt from:', req.ip);
-      res.status(401).json({
-        error: 'Authentication required',
-        message: 'Please provide a valid OAuth token or API key in the Authorization header.',
-      });
+      
+      // Determine base URL for discovery endpoint
+      const baseUrl = MCP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+      
+      // Return 401 with WWW-Authenticate header pointing to OAuth discovery
+      // This enables Claude Custom Connectors to automatically discover OAuth configuration
+      res.status(401)
+         .set('WWW-Authenticate', `Bearer realm="${baseUrl}/.well-known/oauth-protected-resource"`)
+         .json({
+           error: 'Authentication required',
+           message: 'Please authenticate via OAuth or provide a valid bearer token.',
+           oauth_discovery: `${baseUrl}/.well-known/oauth-protected-resource`
+         });
       return;
     }
 
@@ -613,9 +645,11 @@ async function main() {
     console.log(`✅ KURA MCP Server running on port ${PORT}`);
     console.log(`   SSE endpoint: http://localhost:${PORT}/sse`);
     console.log(`   Health check: http://localhost:${PORT}/health`);
+    console.log(`   OAuth discovery: http://localhost:${PORT}/.well-known/oauth-protected-resource`);
     console.log(`   KURA API URL: ${KURA_API_URL}`);
     console.log(`   KOauth URL: ${KOAUTH_URL}`);
     console.log(`   Authentication: Required (OAuth token or API key)`);
+    console.log(`   Transport: Streamable HTTP (SSE) - Compatible with Claude Custom Connectors`);
   });
 }
 

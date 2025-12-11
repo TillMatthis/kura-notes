@@ -81,6 +81,11 @@ KURA_API_URL=http://api:3000
 
 # MCP Server Port
 MCP_PORT=3001
+
+# MCP Base URL (optional, for OAuth autodiscovery)
+# If not set, will be inferred from request headers
+# Example: https://kura.tillmaessen.de/mcp
+MCP_BASE_URL=
 ```
 
 **Note:** The MCP server no longer uses a shared `API_KEY`. Each user authenticates with their own OAuth token or API key.
@@ -231,6 +236,85 @@ If you're running KURA locally (not on VPS):
 ```
 
 **Note:** Even for local development, you still need a valid API key from KOauth. The API key authenticates you to access your notes.
+
+## Claude Mobile Custom Connector Configuration
+
+### Overview
+
+Claude mobile app supports Custom Connectors via MCP with OAuth autodiscovery. Unlike Claude Desktop (which uses STDIO), Claude mobile uses **Streamable HTTP transport** (SSE) with automatic OAuth flow.
+
+### How OAuth Autodiscovery Works
+
+1. **User adds MCP server URL** to Claude mobile: `https://kura.tillmaessen.de/mcp/sse`
+2. **Claude connects** without authentication: `GET https://kura.tillmaessen.de/mcp/sse`
+3. **Server returns 401** with `WWW-Authenticate` header pointing to OAuth discovery endpoint
+4. **Claude discovers OAuth config** via `/.well-known/oauth-protected-resource`
+5. **Claude handles OAuth flow** automatically - redirects user to KOauth for authentication
+6. **User authenticates** via KOauth (Google/GitHub login)
+7. **Claude receives OAuth token** and connects to MCP server with bearer token
+
+### Prerequisites
+
+1. **MCP server must be accessible** via HTTPS (required for OAuth)
+   - Example: `https://kura.tillmaessen.de/mcp/sse`
+   - The server must be exposed through a reverse proxy (Caddy) with SSL
+
+2. **OAuth client must be registered** in KOauth
+   - The MCP server uses KOauth as the authorization server
+   - Users authenticate via KOauth (Google/GitHub)
+
+### Configuration Steps
+
+1. **Ensure MCP server is running** and accessible:
+   ```bash
+   curl https://kura.tillmaessen.de/mcp/health
+   ```
+
+2. **Verify OAuth discovery endpoint**:
+   ```bash
+   curl https://kura.tillmaessen.de/mcp/.well-known/oauth-protected-resource
+   ```
+   
+   Should return:
+   ```json
+   {
+     "resource": "https://kura.tillmaessen.de/mcp/sse",
+     "authorization_servers": ["https://auth.tillmaessen.de"],
+     "scopes_supported": ["openid", "profile", "email"]
+   }
+   ```
+
+3. **Configure in Claude Mobile App**:
+   - Open Claude mobile app
+   - Go to Settings → Connectors → Add Custom Connector
+   - Enter the MCP server URL: `https://kura.tillmaessen.de/mcp/sse`
+   - Claude will automatically discover OAuth configuration
+   - You'll be redirected to KOauth to authenticate
+   - After authentication, the connector will be ready to use
+
+### Manual Bearer Token (Alternative)
+
+If you prefer to use an API key instead of OAuth:
+
+1. **Generate API Key** from KOauth dashboard: `https://auth.tillmaessen.de/dashboard`
+2. **Configure in Claude Mobile**:
+   - When adding the Custom Connector, provide the bearer token
+   - Format: `Bearer YOUR_API_KEY_HERE`
+   - Claude will use this token for all requests
+
+**Note:** OAuth is recommended for better security and automatic token refresh.
+
+### Environment Variable Configuration
+
+For proper OAuth autodiscovery, set `MCP_BASE_URL` in your `.env` file:
+
+```bash
+# MCP Base URL (for OAuth autodiscovery)
+# If not set, will be inferred from request headers
+MCP_BASE_URL=https://kura.tillmaessen.de/mcp
+```
+
+This ensures the discovery endpoint returns the correct URLs even when behind a reverse proxy.
 
 ## Available Tools
 
