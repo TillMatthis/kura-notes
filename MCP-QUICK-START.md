@@ -8,7 +8,8 @@ The KURA Notes MCP service is **complete and ready to use**. All components are 
 - ✅ Docker integration (`docker-compose.yml`)
 - ✅ Authentication (KOauth integration)
 - ✅ 5 MCP tools (search, create, get, list, delete)
-- ✅ SSE transport for remote connections
+- ✅ STDIO transport for Claude Desktop (required)
+- ✅ SSE transport for other MCP clients (optional)
 
 ---
 
@@ -59,7 +60,17 @@ Should return: `{"status":"ok","service":"kura-mcp-server",...}`
 3. Click "New Key"
 4. Copy the key (you won't see it again!)
 
-### 5. Configure Claude Desktop
+### 5. Build STDIO Server and Configure Claude Desktop
+
+**First, build the STDIO server:**
+
+```bash
+cd mcp
+npm install
+npm run build
+```
+
+**Then configure Claude Desktop:**
 
 **macOS**: Edit `~/Library/Application Support/Claude/claude_desktop_config.json`
 
@@ -67,21 +78,26 @@ Should return: `{"status":"ok","service":"kura-mcp-server",...}`
 {
   "mcpServers": {
     "kura-notes": {
-      "url": "https://kura.tillmaessen.de/mcp/sse",
-      "transport": {
-        "type": "sse"
-      },
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY_HERE"
+      "command": "node",
+      "args": ["/absolute/path/to/kura-notes/mcp/dist/server-stdio.js"],
+      "env": {
+        "API_KEY": "YOUR_API_KEY_HERE",
+        "KURA_API_URL": "https://kura.tillmaessen.de",
+        "KOAUTH_URL": "https://auth.tillmaessen.de"
       }
     }
   }
 }
 ```
 
-**Replace `YOUR_API_KEY_HERE`** with your API key from step 4.
+**Important:**
+- Replace `/absolute/path/to/kura-notes` with the **absolute path** to your kura-notes directory
+- Replace `YOUR_API_KEY_HERE` with your API key from step 4
+- For local development, use `"KURA_API_URL": "http://localhost:3000"`
 
 **Restart Claude Desktop** and you're ready to go!
+
+**Note:** Claude Desktop does NOT support SSE transport. You must use the STDIO server (`server-stdio.js`).
 
 ---
 
@@ -117,9 +133,11 @@ docker-compose restart mcp
 ```
 
 **Claude Desktop can't connect?**
-- Verify: `curl https://kura.tillmaessen.de/mcp/health`
-- Check API key is correct
+- Verify STDIO server is built: `ls mcp/dist/server-stdio.js`
+- Check that path in config is **absolute** (not relative)
+- Verify API key is correct and set in `env.API_KEY`
 - Ensure Claude Desktop config JSON is valid
+- Check Claude Desktop logs: `~/Library/Logs/Claude/` (macOS)
 - Restart Claude Desktop completely
 
 **Authentication errors?**

@@ -149,6 +149,10 @@ curl https://kura.tillmaessen.de/mcp/health
 
 ## 🔧 Claude Desktop Configuration
 
+### ⚠️ Important: Claude Desktop Does NOT Support SSE
+
+**Claude Desktop only supports STDIO transport**, not SSE (Server-Sent Events). The SSE server (`server.ts`) is available for other MCP clients that support it, but **Claude Desktop requires the STDIO version** (`server-stdio.ts`).
+
 ### Prerequisites
 
 Before configuring Claude Desktop, you need an **API Key** from KOauth:
@@ -165,7 +169,19 @@ Before configuring Claude Desktop, you need an **API Key** from KOauth:
 
 ### Configuration Steps
 
-#### **Option 1: Remote Server (VPS Deployment)**
+#### **Step 1: Build the STDIO Server**
+
+First, ensure the STDIO server is built:
+
+```bash
+cd mcp
+npm install
+npm run build
+```
+
+This creates `mcp/dist/server-stdio.js` which Claude Desktop will run.
+
+#### **Step 2: Configure Claude Desktop**
 
 1. **Locate Claude Desktop Config File:**
    - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -180,69 +196,69 @@ Before configuring Claude Desktop, you need an **API Key** from KOauth:
    {
      "mcpServers": {
        "kura-notes": {
-         "url": "https://kura.tillmaessen.de/mcp/sse",
-         "transport": {
-           "type": "sse"
-         },
-         "headers": {
-           "Authorization": "Bearer YOUR_API_KEY_HERE"
+         "command": "node",
+         "args": ["/absolute/path/to/kura-notes/mcp/dist/server-stdio.js"],
+         "env": {
+           "API_KEY": "YOUR_API_KEY_HERE",
+           "KURA_API_URL": "https://kura.tillmaessen.de",
+           "KOAUTH_URL": "https://auth.tillmaessen.de"
          }
        }
      }
    }
    ```
 
-   **Replace `YOUR_API_KEY_HERE`** with the API key you generated from KOauth.
+   **Important:**
+   - Replace `/absolute/path/to/kura-notes` with the **absolute path** to your kura-notes directory
+   - Replace `YOUR_API_KEY_HERE` with the API key you generated from KOauth
+   - For local development, use `"KURA_API_URL": "http://localhost:3000"` instead
 
 3. **Restart Claude Desktop:**
    - Quit Claude Desktop completely
    - Reopen Claude Desktop
    - The MCP server should now be connected
 
-#### **Option 2: Local Development**
+#### **Example Configuration (macOS)**
 
-If running locally (not on VPS):
+If your project is at `/Users/tillmaessen/Documents/GitHub/kura-notes`:
 
 ```json
 {
   "mcpServers": {
     "kura-notes": {
-      "url": "http://localhost:3001/sse",
-      "transport": {
-        "type": "sse"
-      },
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY_HERE"
+      "command": "node",
+      "args": ["/Users/tillmaessen/Documents/GitHub/kura-notes/mcp/dist/server-stdio.js"],
+      "env": {
+        "API_KEY": "your-actual-api-key-here",
+        "KURA_API_URL": "https://kura.tillmaessen.de",
+        "KOAUTH_URL": "https://auth.tillmaessen.de"
       }
     }
   }
 }
 ```
 
-**Note**: For local development, you can also use test headers if the KURA API is running in non-production mode, but API keys are recommended for consistency.
+#### **Local Development Setup**
 
-### OAuth 2.0 Configuration (Alternative)
-
-If you prefer OAuth 2.0 instead of API keys:
+If you're running KURA locally (not on VPS):
 
 ```json
 {
   "mcpServers": {
     "kura-notes": {
-      "url": "https://kura.tillmaessen.de/mcp/sse",
-      "transport": {
-        "type": "sse"
-      },
-      "oauth": {
-        "clientId": "your-oauth-client-id",
-        "clientSecret": "your-oauth-client-secret",
-        "authorizationUrl": "https://auth.tillmaessen.de/oauth/authorize",
-        "tokenUrl": "https://auth.tillmaessen.de/oauth/token"
+      "command": "node",
+      "args": ["/absolute/path/to/kura-notes/mcp/dist/server-stdio.js"],
+      "env": {
+        "API_KEY": "YOUR_API_KEY_HERE",
+        "KURA_API_URL": "http://localhost:3000",
+        "KOAUTH_URL": "https://auth.tillmaessen.de"
       }
     }
   }
 }
 ```
+
+**Note:** Even for local development, you still need a valid API key from KOauth. The API key authenticates you to access your notes.
 
 **Note**: OAuth requires setting up an OAuth client in KOauth. API keys are simpler for most use cases.
 

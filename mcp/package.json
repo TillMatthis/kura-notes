@@ -6,8 +6,10 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:stdio": "tsx watch src/server-stdio.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:stdio": "node dist/server-stdio.js",
     "clean": "rm -rf dist"
   },
   "keywords": [
