@@ -568,9 +568,25 @@ async function main() {
 
   // OAuth Protected Resource Discovery endpoint
   // This enables Claude Custom Connectors to automatically discover OAuth configuration
+  // Handle both /mcp/.well-known/... (when behind reverse proxy) and /.well-known/... (direct access)
   app.get('/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
     // Determine base URL from request or environment variable
-    const baseUrl = MCP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    // If MCP_BASE_URL is set, use it; otherwise infer from request
+    let baseUrl = MCP_BASE_URL;
+    
+    if (!baseUrl) {
+      const host = req.get('host');
+      const protocol = req.protocol;
+      // Check if the request path includes /mcp prefix (from reverse proxy)
+      const originalPath = req.originalUrl || req.url;
+      if (originalPath.startsWith('/mcp')) {
+        // Behind reverse proxy with /mcp prefix
+        baseUrl = `${protocol}://${host}/mcp`;
+      } else {
+        // Direct access or reverse proxy strips prefix
+        baseUrl = `${protocol}://${host}`;
+      }
+    }
     
     res.json({
       resource: `${baseUrl}/sse`,  // The protected MCP endpoint
@@ -578,6 +594,38 @@ async function main() {
       scopes_supported: ['openid', 'profile', 'email']
     });
   });
+  
+  // Also handle /mcp/.well-known/... path for reverse proxy compatibility
+  app.get('/mcp/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
+    // Determine base URL from request or environment variable
+    const baseUrl = MCP_BASE_URL || `${req.protocol}://${req.get('host')}/mcp`;
+    
+    res.json({
+      resource: `${baseUrl}/sse`,  // The protected MCP endpoint
+      authorization_servers: [KOAUTH_URL],  // KOauth server URL
+      scopes_supported: ['openid', 'profile', 'email']
+    });
+  });
+
+  // Helper function to determine base URL for OAuth discovery
+  function getBaseUrl(req: Request): string {
+    if (MCP_BASE_URL) {
+      return MCP_BASE_URL;
+    }
+    
+    const host = req.get('host');
+    const protocol = req.protocol;
+    const originalPath = req.originalUrl || req.url;
+    
+    // Check if the request path includes /mcp prefix (from reverse proxy)
+    if (originalPath.startsWith('/mcp')) {
+      // Behind reverse proxy with /mcp prefix
+      return `${protocol}://${host}/mcp`;
+    } else {
+      // Direct access or reverse proxy strips prefix
+      return `${protocol}://${host}`;
+    }
+  }
 
   // SSE endpoint for MCP with authentication
   // This endpoint supports OAuth autodiscovery via WWW-Authenticate header
@@ -592,7 +640,7 @@ async function main() {
       console.warn('Unauthenticated SSE connection attempt from:', req.ip);
       
       // Determine base URL for discovery endpoint
-      const baseUrl = MCP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+      const baseUrl = getBaseUrl(req);
       
       // Return 401 with WWW-Authenticate header pointing to OAuth discovery
       // This enables Claude Custom Connectors to automatically discover OAuth configuration
@@ -638,6 +686,66 @@ async function main() {
     // This endpoint is used by the SSE transport to receive messages from the client
     // The actual handling is done by the transport
     res.status(200).send();
+  });
+  
+  // Also handle /mcp/message path for reverse proxy compatibility
+  app.post('/mcp/message', express.json(), async (_req: Request, res: ExpressResponse) => {
+    // This endpoint is used by the SSE transport to receive messages from the client
+    // The actual handling is done by the transport
+    res.status(200).send();
+  });
+  
+  // Also handle /mcp/sse path for reverse proxy compatibility
+  app.get('/mcp/sse', async (req: Request, res: ExpressResponse) => {
+    // Forward to the main /sse handler
+    // Extract Authorization header
+    const authHeader = req.headers.authorization;
+
+    // Authenticate the request
+    const user = await authenticate(authHeader);
+
+    if (!user) {
+      console.warn('Unauthenticated SSE connection attempt from:', req.ip);
+      
+      // Determine base URL for discovery endpoint
+      const baseUrl = getBaseUrl(req);
+      
+      // Return 401 with WWW-Authenticate header pointing to OAuth discovery
+      res.status(401)
+         .set('WWW-Authenticate', `Bearer realm="${baseUrl}/.well-known/oauth-protected-resource"`)
+         .json({
+           error: 'Authentication required',
+           message: 'Please authenticate via OAuth or provide a valid bearer token.',
+           oauth_discovery: `${baseUrl}/.well-known/oauth-protected-resource`
+         });
+      return;
+    }
+
+    console.log('Authenticated SSE connection from:', req.ip, {
+      userId: user.id,
+      email: user.email,
+      tokenType: user.tokenType,
+    });
+
+    // Generate unique connection ID
+    const connectionId = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    // Store user context for this connection
+    userContextMap.set(connectionId, user);
+
+    // Create MCP server instance for this connection
+    const mcpServer = createMCPServer(connectionId);
+
+    // Set up SSE transport
+    const transport = new SSEServerTransport('/message', res);
+    await mcpServer.connect(transport);
+
+    // Handle connection close
+    req.on('close', () => {
+      console.log('SSE connection closed:', req.ip, { userId: user.id });
+      // Clean up user context
+      userContextMap.delete(connectionId);
+    });
   });
 
   // Start server
