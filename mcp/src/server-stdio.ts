@@ -101,6 +101,13 @@ interface KuraDeleteResponse {
   message: string;
 }
 
+interface KuraUpdateResponse {
+  success: boolean;
+  content: KuraContentMetadata;
+  message: string;
+  timestamp: string;
+}
+
 // Authenticated user (single user per STDIO process)
 let authenticatedUser: AuthenticatedUser | null = null;
 
@@ -212,6 +219,14 @@ function createMCPServer(): Server {
                 type: 'string',
                 description: 'Filter by tags (comma-separated)',
               },
+              dateFrom: {
+                type: 'string',
+                description: 'Filter by created date >= this ISO 8601 date (e.g., 2024-01-01 or 2024-01-01T00:00:00Z)',
+              },
+              dateTo: {
+                type: 'string',
+                description: 'Filter by created date <= this ISO 8601 date (e.g., 2024-12-31 or 2024-12-31T23:59:59Z)',
+              },
             },
             required: ['query'],
           },
@@ -284,6 +299,54 @@ function createMCPServer(): Server {
             required: ['id'],
           },
         },
+        {
+          name: 'kura_update',
+          description:
+            'Update a note\'s metadata (title, annotation, tags). Cannot update content itself.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'The unique ID of the note to update',
+              },
+              title: {
+                type: 'string',
+                description: 'New title for the note (max 200 characters)',
+              },
+              annotation: {
+                type: 'string',
+                description: 'New annotation/comment for the note (max 5000 characters)',
+              },
+              tags: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'New tags array (replaces existing tags, max 20 tags)',
+              },
+            },
+            required: ['id'],
+          },
+        },
+        {
+          name: 'kura_list',
+          description:
+            'List notes with flexible pagination. Returns metadata only, not full content.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              limit: {
+                type: 'number',
+                description: 'Maximum number of results (default: 20, max: 100)',
+                default: 20,
+              },
+              offset: {
+                type: 'number',
+                description: 'Number of results to skip for pagination (default: 0)',
+                default: 0,
+              },
+            },
+          },
+        },
       ],
     };
   });
@@ -313,11 +376,13 @@ function createMCPServer(): Server {
     try {
       switch (name) {
         case 'kura_search': {
-          const { query, limit = 10, contentType, tags } = args as {
+          const { query, limit = 10, contentType, tags, dateFrom, dateTo } = args as {
             query: string;
             limit?: number;
             contentType?: string;
             tags?: string;
+            dateFrom?: string;
+            dateTo?: string;
           };
 
           // Build query parameters
@@ -328,6 +393,8 @@ function createMCPServer(): Server {
 
           if (contentType) params.append('contentType', contentType);
           if (tags) params.append('tags', tags);
+          if (dateFrom) params.append('dateFrom', dateFrom);
+          if (dateTo) params.append('dateTo', dateTo);
 
           const response = await callKuraAPI(`/api/search?${params}`);
 
@@ -504,6 +571,103 @@ function createMCPServer(): Server {
                     success: true,
                     message: data.message,
                     id,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        }
+
+        case 'kura_update': {
+          const { id, title, annotation, tags } = args as {
+            id: string;
+            title?: string;
+            annotation?: string;
+            tags?: string[];
+          };
+
+          if (!id) {
+            throw new Error('Note ID is required');
+          }
+
+          // Build update payload with only provided fields
+          const updatePayload: {
+            title?: string;
+            annotation?: string;
+            tags?: string[];
+          } = {};
+
+          if (title !== undefined) updatePayload.title = title;
+          if (annotation !== undefined) updatePayload.annotation = annotation;
+          if (tags !== undefined) updatePayload.tags = tags;
+
+          const response = await callKuraAPI(`/api/content/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(updatePayload),
+          });
+
+          if (!response.ok) {
+            if (response.status === 404) {
+              throw new Error(`Note not found: ${id}`);
+            }
+            const error = await response.text();
+            throw new Error(`Update failed: ${response.status} - ${error}`);
+          }
+
+          const data = (await response.json()) as KuraUpdateResponse;
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: true,
+                    content: data.content,
+                    message: data.message,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        }
+
+        case 'kura_list': {
+          const { limit = 20, offset = 0 } = args as {
+            limit?: number;
+            offset?: number;
+          };
+
+          // Build query parameters
+          const params = new URLSearchParams({
+            limit: String(limit),
+            offset: String(offset),
+          });
+
+          const response = await callKuraAPI(`/api/content/list?${params}`);
+
+          if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`List failed: ${response.status} - ${error}`);
+          }
+
+          const data = (await response.json()) as KuraRecentResponse;
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: true,
+                    items: data.items,
+                    count: data.count,
+                    limit,
+                    offset,
                   },
                   null,
                   2
