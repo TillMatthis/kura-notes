@@ -10,6 +10,9 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
+# Install build dependencies for native modules (better-sqlite3, sharp)
+RUN apk add --no-cache python3 make g++ sqlite-dev
+
 # Install dependencies (including dev dependencies for build)
 RUN npm install
 
@@ -37,9 +40,12 @@ RUN addgroup -g 1001 -S kura && \
 # Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm install --omit=dev && \
-    npm cache clean --force
+# Install build dependencies, production packages, then cleanup to minimize image size
+RUN apk add --no-cache --virtual .build-deps python3 make g++ sqlite-dev && \
+    npm install --omit=dev && \
+    npm cache clean --force && \
+    apk del .build-deps && \
+    apk add --no-cache sqlite-libs
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
