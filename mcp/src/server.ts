@@ -570,6 +570,14 @@ async function main() {
   // This enables Claude Custom Connectors to automatically discover OAuth configuration
   // Handle both /mcp/.well-known/... (when behind reverse proxy) and /.well-known/... (direct access)
   app.get('/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
+    console.log('OAuth discovery request:', {
+      url: req.url,
+      originalUrl: req.originalUrl,
+      host: req.get('host'),
+      protocol: req.protocol,
+      headers: req.headers,
+    });
+    
     // Determine base URL from request or environment variable
     // If MCP_BASE_URL is set, use it; otherwise infer from request
     let baseUrl = MCP_BASE_URL;
@@ -588,23 +596,42 @@ async function main() {
       }
     }
     
-    res.json({
+    const discoveryResponse = {
       resource: `${baseUrl}/sse`,  // The protected MCP endpoint
       authorization_servers: [KOAUTH_URL],  // KOauth server URL
-      scopes_supported: ['openid', 'profile', 'email']
-    });
+      jwks_uri: `${KOAUTH_URL}/.well-known/jwks.json`,  // JWKS endpoint for token verification
+      scopes_supported: ['openid', 'profile', 'email'],
+      bearer_methods_supported: ['header']  // Bearer token in Authorization header
+    };
+    
+    console.log('OAuth discovery response:', discoveryResponse);
+    
+    res.json(discoveryResponse);
   });
   
   // Also handle /mcp/.well-known/... path for reverse proxy compatibility
   app.get('/mcp/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
+    console.log('OAuth discovery request (with /mcp prefix):', {
+      url: req.url,
+      originalUrl: req.originalUrl,
+      host: req.get('host'),
+      protocol: req.protocol,
+    });
+    
     // Determine base URL from request or environment variable
     const baseUrl = MCP_BASE_URL || `${req.protocol}://${req.get('host')}/mcp`;
     
-    res.json({
+    const discoveryResponse = {
       resource: `${baseUrl}/sse`,  // The protected MCP endpoint
       authorization_servers: [KOAUTH_URL],  // KOauth server URL
-      scopes_supported: ['openid', 'profile', 'email']
-    });
+      jwks_uri: `${KOAUTH_URL}/.well-known/jwks.json`,  // JWKS endpoint for token verification
+      scopes_supported: ['openid', 'profile', 'email'],
+      bearer_methods_supported: ['header']  // Bearer token in Authorization header
+    };
+    
+    console.log('OAuth discovery response (with /mcp prefix):', discoveryResponse);
+    
+    res.json(discoveryResponse);
   });
 
   // Helper function to determine base URL for OAuth discovery
@@ -637,19 +664,29 @@ async function main() {
     const user = await authenticate(authHeader);
 
     if (!user) {
-      console.warn('Unauthenticated SSE connection attempt from:', req.ip);
+      console.warn('Unauthenticated SSE connection attempt from:', {
+        ip: req.ip,
+        url: req.url,
+        originalUrl: req.originalUrl,
+        host: req.get('host'),
+        protocol: req.protocol,
+        headers: req.headers,
+      });
       
       // Determine base URL for discovery endpoint
       const baseUrl = getBaseUrl(req);
+      const discoveryUrl = `${baseUrl}/.well-known/oauth-protected-resource`;
+      
+      console.log('Returning 401 with discovery URL:', discoveryUrl);
       
       // Return 401 with WWW-Authenticate header pointing to OAuth discovery
       // This enables Claude Custom Connectors to automatically discover OAuth configuration
       res.status(401)
-         .set('WWW-Authenticate', `Bearer realm="${baseUrl}/.well-known/oauth-protected-resource"`)
+         .set('WWW-Authenticate', `Bearer realm="${discoveryUrl}"`)
          .json({
            error: 'Authentication required',
            message: 'Please authenticate via OAuth or provide a valid bearer token.',
-           oauth_discovery: `${baseUrl}/.well-known/oauth-protected-resource`
+           oauth_discovery: discoveryUrl
          });
       return;
     }
