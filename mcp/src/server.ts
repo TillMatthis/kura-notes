@@ -112,6 +112,12 @@ interface KuraDeleteResponse {
 const userContextMap = new Map<string, AuthenticatedUser>();
 
 /**
+ * Transport storage per SSE session
+ * Maps sessionId to SSEServerTransport instance
+ */
+const transportMap = new Map<string, SSEServerTransport>();
+
+/**
  * Make authenticated request to KURA API
  */
 async function callKuraAPI(
@@ -778,28 +784,107 @@ async function main() {
 
     // Set up SSE transport
     const transport = new SSEServerTransport('/message', res);
+    
+    // Store transport by sessionId for message routing
+    transportMap.set(transport.sessionId, transport);
+    console.log('SSE transport created:', {
+      sessionId: transport.sessionId,
+      userId: user.id,
+      connectionId,
+    });
+    
     await mcpServer.connect(transport);
 
     // Handle connection close
     req.on('close', () => {
-      console.log('SSE connection closed:', req.ip, { userId: user.id });
-      // Clean up user context
+      console.log('SSE connection closed:', req.ip, { 
+        userId: user.id,
+        sessionId: transport.sessionId,
+      });
+      // Clean up transport and user context
+      transportMap.delete(transport.sessionId);
       userContextMap.delete(connectionId);
     });
   });
 
   // POST endpoint for client messages
-  app.post('/message', express.json(), async (_req: Request, res: ExpressResponse) => {
-    // This endpoint is used by the SSE transport to receive messages from the client
-    // The actual handling is done by the transport
-    res.status(200).send();
+  app.post('/message', express.json(), async (req: Request, res: ExpressResponse) => {
+    // Extract sessionId from query parameters
+    const sessionId = req.query.sessionId as string;
+    
+    if (!sessionId) {
+      console.warn('POST /message received without sessionId');
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'sessionId query parameter is required',
+      });
+    }
+
+    // Look up transport instance for this session
+    const transport = transportMap.get(sessionId);
+    
+    if (!transport) {
+      console.warn('POST /message received for unknown sessionId:', sessionId);
+      return res.status(404).json({
+        error: 'Not Found',
+        message: `No active transport found for sessionId: ${sessionId}`,
+      });
+    }
+
+    // Forward the message to the transport for processing
+    try {
+      await transport.handlePostMessage(req, res, req.body);
+      return; // handlePostMessage handles the response
+    } catch (error) {
+      console.error('Error handling POST message:', error);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          error: 'Internal Server Error',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+      return;
+    }
   });
   
   // Also handle /mcp/message path for reverse proxy compatibility
-  app.post('/mcp/message', express.json(), async (_req: Request, res: ExpressResponse) => {
-    // This endpoint is used by the SSE transport to receive messages from the client
-    // The actual handling is done by the transport
-    res.status(200).send();
+  app.post('/mcp/message', express.json(), async (req: Request, res: ExpressResponse) => {
+    // Extract sessionId from query parameters
+    const sessionId = req.query.sessionId as string;
+    
+    if (!sessionId) {
+      console.warn('POST /mcp/message received without sessionId');
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'sessionId query parameter is required',
+      });
+    }
+
+    // Look up transport instance for this session
+    const transport = transportMap.get(sessionId);
+    
+    if (!transport) {
+      console.warn('POST /mcp/message received for unknown sessionId:', sessionId);
+      return res.status(404).json({
+        error: 'Not Found',
+        message: `No active transport found for sessionId: ${sessionId}`,
+      });
+    }
+
+    // Forward the message to the transport for processing
+    try {
+      await transport.handlePostMessage(req, res, req.body);
+      return; // handlePostMessage handles the response
+    } catch (error) {
+      console.error('Error handling POST message:', error);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          error: 'Internal Server Error',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+      return;
+    }
   });
   
   // Also handle /mcp/sse path for reverse proxy compatibility
@@ -845,12 +930,25 @@ async function main() {
 
     // Set up SSE transport
     const transport = new SSEServerTransport('/message', res);
+    
+    // Store transport by sessionId for message routing
+    transportMap.set(transport.sessionId, transport);
+    console.log('SSE transport created:', {
+      sessionId: transport.sessionId,
+      userId: user.id,
+      connectionId,
+    });
+    
     await mcpServer.connect(transport);
 
     // Handle connection close
     req.on('close', () => {
-      console.log('SSE connection closed:', req.ip, { userId: user.id });
-      // Clean up user context
+      console.log('SSE connection closed:', req.ip, { 
+        userId: user.id,
+        sessionId: transport.sessionId,
+      });
+      // Clean up transport and user context
+      transportMap.delete(transport.sessionId);
       userContextMap.delete(connectionId);
     });
   });
