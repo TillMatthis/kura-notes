@@ -149,6 +149,87 @@ export async function registerContentRoutes(
   vectorStore: VectorStoreService
 ): Promise<void> {
   /**
+   * GET /api/content/list
+   * Get content items with flexible pagination and sorting
+   * Requires authentication
+   */
+  fastify.get<{
+    Querystring: {
+      limit?: string;
+      offset?: string;
+      sortBy?: string;
+      order?: string;
+    }
+  }>(
+    '/api/content/list',
+    async (
+      request: FastifyRequest<{
+        Querystring: {
+          limit?: string;
+          offset?: string;
+          sortBy?: string;
+          order?: string;
+        }
+      }>,
+      _reply: FastifyReply
+    ): Promise<RecentContentResponse> => {
+      const user = getAuthenticatedUser(request);
+
+      // Parse and validate query parameters
+      const limit = request.query.limit ? parseInt(request.query.limit, 10) : 20;
+      const offset = request.query.offset ? parseInt(request.query.offset, 10) : 0;
+
+      if (isNaN(limit) || limit < 1 || limit > 100) {
+        throw ApiErrors.validationError('Limit must be between 1 and 100');
+      }
+
+      if (isNaN(offset) || offset < 0) {
+        throw ApiErrors.validationError('Offset must be 0 or greater');
+      }
+
+      logger.debug('List content request received', {
+        userId: user.id,
+        limit,
+        offset
+      });
+
+      try {
+        const items = db.getAllContent(user.id, limit, offset);
+
+        // Map to metadata-only format (exclude file_path and extracted_text)
+        const metadata: ContentMetadata[] = items.map((item) => ({
+          id: item.id,
+          content_type: item.content_type,
+          title: item.title,
+          annotation: item.annotation,
+          tags: item.tags,
+          source: item.source,
+          image_metadata: item.image_metadata,
+          pdf_metadata: item.pdf_metadata,
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+        }));
+
+        logger.info('Content list retrieved successfully', {
+          count: metadata.length,
+          limit,
+          offset,
+        });
+
+        return {
+          success: true,
+          items: metadata,
+          count: metadata.length,
+          timestamp: new Date().toISOString(),
+        };
+      } catch (error) {
+        logger.error('Failed to retrieve content list', { error });
+        throw ApiErrors.storageError('Failed to retrieve content list');
+      }
+    }
+  );
+
+  /**
    * GET /api/content/recent
    * Get recent content items (last 20, metadata only)
    * Requires authentication
