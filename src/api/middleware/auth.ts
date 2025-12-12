@@ -86,6 +86,16 @@ export async function authMiddleware(
     return;
   }
 
+  // Skip authentication for OAuth discovery endpoints
+  // These redirect to KOauth, so they need to be public
+  // Only match exact paths we've registered (security: prevent matching unintended paths)
+  if (
+    urlPath === '/.well-known/oauth-authorization-server' ||
+    urlPath === '/.well-known/oauth-authorization-server/mcp'
+  ) {
+    return;
+  }
+
   // 1. Try OAuth session authentication (highest priority)
   if (request.session?.accessToken) {
     const payload = await verifyJwtToken(request.session.accessToken);
