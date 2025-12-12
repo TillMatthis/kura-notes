@@ -2,7 +2,10 @@
  * KURA Notes - Authentication Middleware
  *
  * OAuth 2.0 based authentication using KOauth
- * Supports both OAuth sessions (browser) and API keys (programmatic access)
+ * Supports:
+ * - OAuth sessions (browser) via session cookies
+ * - OAuth access tokens (Bearer tokens, type: "access_token")
+ * - API keys (Bearer tokens, type: "api_key" - JWT or legacy opaque)
  */
 
 import { FastifyRequest, FastifyReply } from 'fastify';
@@ -10,7 +13,7 @@ import { logger } from '../../utils/logger.js';
 import { ApiErrors } from '../types/errors.js';
 import { validateApiKey } from '../../lib/koauth-client.js';
 import { refreshOAuthToken } from '../routes/oauth.js';
-import { verifyJWT } from '../../lib/jwt-verifier.js';
+import { verifyJWT, isJWT } from '../../lib/jwt-verifier.js';
 
 // KOauth will be initialized in server.ts and provide these functions
 // Import will be added after KOauth initialization
@@ -87,11 +90,12 @@ export async function authMiddleware(
   }
 
   // Skip authentication for OAuth discovery endpoints
-  // These redirect to KOauth, so they need to be public
+  // These redirect to KOauth or return metadata, so they need to be public
   // Only match exact paths we've registered (security: prevent matching unintended paths)
   if (
     urlPath === '/.well-known/oauth-authorization-server' ||
-    urlPath === '/.well-known/oauth-authorization-server/mcp'
+    urlPath === '/.well-known/oauth-authorization-server/mcp' ||
+    urlPath === '/.well-known/oauth-protected-resource'
   ) {
     return;
   }
@@ -181,28 +185,52 @@ export async function authMiddleware(
     }
   }
 
-  // 3. Try API key authentication (for programmatic access)
+  // 3. Try Bearer token authentication (OAuth access tokens or API keys)
   const authHeader = request.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
-    const apiKey = authHeader.substring(7);
+    const token = authHeader.substring(7);
 
     try {
-      const apiKeyUser = await validateApiKey(apiKey);
+      // Check if token is a JWT (OAuth access token or JWT-based API key)
+      if (isJWT(token)) {
+        // JWT token - verify signature and accept both access_token and api_key types
+        const verifiedUser = await verifyJWT(token);
 
-      if (apiKeyUser) {
-        // Store API key user in WeakMap for later retrieval
-        apiKeyUserMap.set(request, apiKeyUser);
+        if (verifiedUser) {
+          // Store authenticated user in WeakMap for later retrieval
+          apiKeyUserMap.set(request, {
+            id: verifiedUser.id,
+            email: verifiedUser.email,
+          });
 
-        logger.debug('API key authentication successful', {
-          method: request.method,
-          url: request.url,
-          userId: apiKeyUser.id,
-          email: apiKeyUser.email,
-        });
-        return;
+          logger.debug('Bearer token authentication successful', {
+            method: request.method,
+            url: request.url,
+            userId: verifiedUser.id,
+            email: verifiedUser.email,
+            tokenType: verifiedUser.tokenType,
+          });
+          return;
+        }
+      } else {
+        // Not a JWT - must be legacy opaque API key
+        const apiKeyUser = await validateApiKey(token);
+
+        if (apiKeyUser) {
+          // Store API key user in WeakMap for later retrieval
+          apiKeyUserMap.set(request, apiKeyUser);
+
+          logger.debug('Legacy API key authentication successful', {
+            method: request.method,
+            url: request.url,
+            userId: apiKeyUser.id,
+            email: apiKeyUser.email,
+          });
+          return;
+        }
       }
     } catch (error) {
-      logger.warn('API key validation error', {
+      logger.warn('Bearer token validation error', {
         error: error instanceof Error ? error.message : String(error),
         method: request.method,
         url: request.url,
