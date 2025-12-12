@@ -567,7 +567,7 @@ async function main() {
   });
 
   // Handle CORS preflight requests for discovery endpoint
-  app.options('/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
+  app.options('/.well-known/oauth-protected-resource', (_req: Request, res: ExpressResponse) => {
     setCORSHeaders(res);
     res.status(204).send();
   });
@@ -634,7 +634,7 @@ async function main() {
   });
   
   // Handle CORS preflight requests for discovery endpoint (with /mcp prefix)
-  app.options('/mcp/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
+  app.options('/mcp/.well-known/oauth-protected-resource', (_req: Request, res: ExpressResponse) => {
     setCORSHeaders(res);
     res.status(204).send();
   });
