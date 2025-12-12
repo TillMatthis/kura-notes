@@ -90,6 +90,12 @@ export async function authMiddleware(
     return;
   }
 
+  // Skip authentication for MCP message endpoint (used by SSE transport)
+  // This endpoint proxies to the MCP server and handles its own authentication
+  if (urlPath === '/message' || urlPath === '/mcp/message') {
+    return;
+  }
+
   // Skip authentication for OAuth discovery endpoints
   // These redirect to KOauth or return metadata, so they need to be public
   // Only match exact paths we've registered (security: prevent matching unintended paths)
