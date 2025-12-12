@@ -75,6 +75,39 @@ function isEmailAllowed(email: string): boolean {
  */
 export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<void> {
   /**
+   * GET /.well-known/oauth-authorization-server
+   * Redirect to KOauth's authorization server metadata endpoint (RFC 8414)
+   * 
+   * NOTE: Per RFC 8414, this endpoint should be on the authorization server (KOauth), not the resource server (Kura).
+   * However, Claude may try to discover it on the same domain as the resource server.
+   * This redirect ensures Claude can find the correct endpoint.
+   */
+  fastify.get('/.well-known/oauth-authorization-server', async (request: FastifyRequest, reply: FastifyReply) => {
+    logger.debug('OAuth authorization server discovery redirected to KOauth', {
+      url: request.url,
+      redirectTo: `${config.koauthUrl}/.well-known/oauth-authorization-server`,
+    });
+
+    // Redirect to KOauth's authorization server metadata endpoint
+    return reply.redirect(302, `${config.koauthUrl}/.well-known/oauth-authorization-server`);
+  });
+
+  /**
+   * GET /.well-known/oauth-authorization-server/mcp
+   * Redirect to KOauth's authorization server metadata endpoint (RFC 8414)
+   * Supports /mcp prefix for reverse proxy scenarios
+   */
+  fastify.get('/.well-known/oauth-authorization-server/mcp', async (request: FastifyRequest, reply: FastifyReply) => {
+    logger.debug('OAuth authorization server discovery redirected to KOauth (MCP path)', {
+      url: request.url,
+      redirectTo: `${config.koauthUrl}/.well-known/oauth-authorization-server`,
+    });
+
+    // Redirect to KOauth's authorization server metadata endpoint
+    return reply.redirect(302, `${config.koauthUrl}/.well-known/oauth-authorization-server`);
+  });
+
+  /**
    * GET /auth/login
    * Initiates OAuth 2.0 authorization code flow
    */
