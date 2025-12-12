@@ -100,9 +100,14 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
     // Get protocol: check X-Forwarded-Proto header first (when behind proxy with trustProxy: true),
     // otherwise default based on environment or use http
     const forwardedProto = request.headers['x-forwarded-proto'];
-    const protocol = forwardedProto && typeof forwardedProto === 'string'
-      ? forwardedProto.split(',')[0].trim() // Handle multiple proxies, take first
-      : (config.nodeEnv === 'production' ? 'https' : 'http'); // Default based on environment
+    let protocol: string;
+    if (forwardedProto && typeof forwardedProto === 'string') {
+      // Handle multiple proxies, take first value
+      const firstProto = forwardedProto.split(',')[0]?.trim();
+      protocol = firstProto || (config.nodeEnv === 'production' ? 'https' : 'http');
+    } else {
+      protocol = config.nodeEnv === 'production' ? 'https' : 'http';
+    }
     
     const baseUrl = `${protocol}://${host}`;
 

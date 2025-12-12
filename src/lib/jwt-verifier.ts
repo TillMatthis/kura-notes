@@ -152,7 +152,10 @@ export async function verifyJWT(token: string): Promise<VerifiedUser | null> {
         });
       } else if (errorName === 'JWKSNoMatchingKey') {
         const decoded = unsafeDecodeJWT(token);
-        const kid = decoded ? JSON.parse(Buffer.from(token.split('.')[0]!, 'base64url').toString()).kid : null;
+        const tokenParts = token.split('.');
+        const kid = decoded && tokenParts[0] 
+          ? JSON.parse(Buffer.from(tokenParts[0], 'base64url').toString()).kid 
+          : null;
 
         logger.warn('No matching key in JWKS', {
           error: errorMessage,
