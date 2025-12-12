@@ -99,8 +99,8 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
     
     // Get protocol: check X-Forwarded-Proto header first (when behind proxy with trustProxy: true),
     // otherwise default based on environment or use http
-    const forwardedProto = request.headers['x-forwarded-proto'] as string;
-    const protocol = forwardedProto 
+    const forwardedProto = request.headers['x-forwarded-proto'];
+    const protocol = forwardedProto && typeof forwardedProto === 'string'
       ? forwardedProto.split(',')[0].trim() // Handle multiple proxies, take first
       : (config.nodeEnv === 'production' ? 'https' : 'http'); // Default based on environment
     
@@ -150,7 +150,7 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
    * OPTIONS /.well-known/oauth-protected-resource
    * Handle CORS preflight requests
    */
-  fastify.options('/.well-known/oauth-protected-resource', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.options('/.well-known/oauth-protected-resource', async (_request: FastifyRequest, reply: FastifyReply) => {
     return reply
       .header('Access-Control-Allow-Origin', '*')
       .header('Access-Control-Allow-Methods', 'GET, OPTIONS')
