@@ -121,6 +121,9 @@ For detailed setup instructions, troubleshooting, and advanced configuration, se
 
 - **`MCP-SETUP-GUIDE.md`** - Complete setup guide with troubleshooting
 - **`MCP-SETUP.md`** - Technical documentation
+- **`docs/CLAUDE-CONNECTOR-SETUP.md`** - Claude Custom Connector setup (web/mobile)
+- **`docs/CLAUDE-CONNECTOR-TESTING.md`** - Testing checklist for Claude connector
+- **`DEBUG-CLAUDE-CONNECTOR.md`** - Debugging guide for Claude connector issues
 
 ---
 
