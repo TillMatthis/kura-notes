@@ -456,7 +456,7 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
 
   // Handle Claude Desktop's attempt to access resource at discovery path
   // Some OAuth clients try to access the resource at /.well-known/oauth-protected-resource/mcp/sse
-  fastify.get('/.well-known/oauth-protected-resource/mcp/sse', async (request, reply) => {
+  fastify.get('/.well-known/oauth-protected-resource/mcp/sse', async (_request, reply) => {
     // Redirect to the actual MCP SSE endpoint
     return reply.redirect(302, '/mcp/sse');
   });
