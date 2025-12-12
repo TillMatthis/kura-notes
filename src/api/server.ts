@@ -290,6 +290,73 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   // Stats routes (Task 3.7)
   await registerStatsRoutes(fastify);
 
+  // MCP message endpoint - proxy to MCP server
+  // This endpoint is used by the SSE transport to receive messages from the client
+  // The MCP server handles the actual message processing
+  fastify.post('/message', async (request, reply) => {
+    const mcpServerUrl = process.env.MCP_SERVER_URL || 'http://mcp:3001';
+    const queryString = request.url.includes('?') ? request.url.substring(request.url.indexOf('?')) : '';
+    const targetUrl = `${mcpServerUrl}/message${queryString}`;
+
+    try {
+      // Prepare headers for forwarding
+      const headers: Record<string, string> = {
+        'Content-Type': (request.headers['content-type'] as string) || 'application/json',
+      };
+
+      // Forward Authorization header if present
+      if (request.headers.authorization) {
+        headers['Authorization'] = request.headers.authorization as string;
+      }
+
+      // Forward other relevant headers
+      if (request.headers['user-agent']) {
+        headers['User-Agent'] = request.headers['user-agent'] as string;
+      }
+
+      // Prepare request body
+      let body: string | undefined;
+      if (request.body) {
+        if (typeof request.body === 'string') {
+          body = request.body;
+        } else {
+          body = JSON.stringify(request.body);
+        }
+      }
+
+      // Forward the request to the MCP server
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers,
+        body,
+      });
+
+      // Forward the response status and headers
+      reply.status(response.status);
+      
+      const contentType = response.headers.get('content-type');
+      if (contentType) {
+        reply.type(contentType);
+      }
+
+      // Forward the response body
+      const responseBody = await response.text();
+      return reply.send(responseBody || undefined);
+    } catch (error) {
+      logger.error('Error proxying request to MCP server', {
+        error: error instanceof Error ? error.message : String(error),
+        targetUrl,
+        method: request.method,
+      });
+      return reply.status(502).send({
+        error: 'BadGateway',
+        code: 'BAD_GATEWAY',
+        message: 'Failed to connect to MCP server',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
   logger.info('Routes registered successfully');
 }
 
