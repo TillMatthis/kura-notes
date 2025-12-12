@@ -102,8 +102,15 @@ export async function authMiddleware(
   if (
     urlPath === '/.well-known/oauth-authorization-server' ||
     urlPath === '/.well-known/oauth-authorization-server/mcp' ||
-    urlPath === '/.well-known/oauth-protected-resource'
+    urlPath === '/.well-known/oauth-protected-resource' ||
+    urlPath === '/.well-known/oauth-protected-resource/mcp/sse'
   ) {
+    return;
+  }
+
+  // Skip authentication for MCP SSE endpoint (handles its own auth via bearer token)
+  // The MCP server will verify the token
+  if (urlPath === '/mcp/sse') {
     return;
   }
 

@@ -91,25 +91,46 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
       url: request.url,
       host: request.headers.host,
       forwardedProto: request.headers['x-forwarded-proto'],
+      apiBaseUrl: config.apiBaseUrl,
     });
 
-    // Determine base URL from request
-    // Support both direct access and reverse proxy scenarios
-    const host = request.headers.host || `localhost:${config.apiPort}`;
+    // Determine base URL - prefer explicit API_BASE_URL, then infer from request
+    let baseUrl: string;
     
-    // Get protocol: check X-Forwarded-Proto header first (when behind proxy with trustProxy: true),
-    // otherwise default based on environment or use http
-    const forwardedProto = request.headers['x-forwarded-proto'];
-    let protocol: string;
-    if (forwardedProto && typeof forwardedProto === 'string') {
-      // Handle multiple proxies, take first value
-      const firstProto = forwardedProto.split(',')[0]?.trim();
-      protocol = firstProto || (config.nodeEnv === 'production' ? 'https' : 'http');
+    if (config.apiBaseUrl) {
+      // Use explicit base URL if configured (most reliable)
+      baseUrl = config.apiBaseUrl.replace(/\/$/, ''); // Remove trailing slash
+      logger.debug('Using explicit API_BASE_URL', { baseUrl });
     } else {
-      protocol = config.nodeEnv === 'production' ? 'https' : 'http';
+      // Infer from request headers (fallback)
+      const host = request.headers.host || `localhost:${config.apiPort}`;
+      
+      // Get protocol: check X-Forwarded-Proto header first (when behind proxy with trustProxy: true),
+      // otherwise default based on environment or use http
+      const forwardedProto = request.headers['x-forwarded-proto'];
+      let protocol: string;
+      if (forwardedProto && typeof forwardedProto === 'string') {
+        // Handle multiple proxies, take first value
+        const firstProto = forwardedProto.split(',')[0]?.trim();
+        protocol = firstProto || (config.nodeEnv === 'production' ? 'https' : 'http');
+      } else {
+        protocol = config.nodeEnv === 'production' ? 'https' : 'http';
+      }
+      
+      baseUrl = `${protocol}://${host}`;
+      logger.debug('Inferred base URL from request', { baseUrl, protocol, host });
     }
-    
-    const baseUrl = `${protocol}://${host}`;
+
+    // Validate that baseUrl is an absolute URL
+    try {
+      new URL(baseUrl);
+    } catch (error) {
+      logger.error('Invalid base URL constructed', { baseUrl, error });
+      return reply.status(500).send({
+        error: 'Configuration error',
+        message: 'Invalid base URL configuration. Please set API_BASE_URL environment variable.',
+      });
+    }
 
     // Get KOauth issuer (defaults to koauthUrl)
     const authorizationServer = config.koauthIssuer || config.koauthUrl;
@@ -118,9 +139,30 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
     const jwksUri = config.koauthJwksUrl || `${config.koauthUrl}/.well-known/jwks.json`;
 
     // RFC 9728 Protected Resource Metadata
+    // For MCP connections, the resource should point to the MCP SSE endpoint
+    // Ensure it's an absolute URL
+    const mcpResourceUrl = `${baseUrl}/mcp/sse`;
+    
+    // Validate the resource URL is absolute
+    try {
+      const resourceUrlObj = new URL(mcpResourceUrl);
+      logger.debug('Constructed resource URL', { 
+        resource: mcpResourceUrl,
+        protocol: resourceUrlObj.protocol,
+        host: resourceUrlObj.host,
+      });
+    } catch (error) {
+      logger.error('Invalid resource URL constructed', { mcpResourceUrl, error });
+      return reply.status(500).send({
+        error: 'Configuration error',
+        message: 'Failed to construct valid resource URL. Please set API_BASE_URL environment variable.',
+      });
+    }
+    
     const discoveryResponse = {
       // REQUIRED: The protected resource's resource identifier (RFC 9728)
-      resource: baseUrl,
+      // Point to MCP SSE endpoint for Claude Desktop/Mobile connections
+      resource: mcpResourceUrl,
       
       // OPTIONAL: List of authorization server issuer identifiers
       authorization_servers: [authorizationServer],
@@ -138,9 +180,18 @@ export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<voi
       resource_documentation: `${baseUrl}/api/docs`,
     };
 
-    logger.debug('OAuth protected resource discovery response', {
+    logger.info('OAuth protected resource discovery response', {
       resource: discoveryResponse.resource,
       authorization_servers: discoveryResponse.authorization_servers,
+      baseUrl,
+      mcpResourceUrl,
+      // Log request details for debugging
+      requestDetails: {
+        host: request.headers.host,
+        forwardedProto: request.headers['x-forwarded-proto'],
+        url: request.url,
+        protocol: request.protocol,
+      },
     });
 
     return reply

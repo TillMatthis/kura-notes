@@ -19,6 +19,7 @@ export interface Config {
   nodeEnv: 'development' | 'production' | 'test';
   apiPort: number;
   apiKey: string; // Deprecated - kept for backward compatibility
+  apiBaseUrl?: string; // Explicit base URL for API (for OAuth discovery, etc.)
 
   // KOauth Authentication
   koauthUrl: string;
@@ -141,6 +142,7 @@ export function loadConfig(): Config {
     nodeEnv,
     apiPort: getEnvInt('API_PORT', 3000),
     apiKey: getEnv('API_KEY', 'dev-api-key-change-in-production'),
+    apiBaseUrl: getOptionalEnv('API_BASE_URL'), // Explicit base URL for OAuth discovery
 
     // KOauth Authentication
     koauthUrl: getEnv('KOAUTH_URL', 'https://auth.tillmaessen.de'),

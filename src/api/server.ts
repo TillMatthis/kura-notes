@@ -17,6 +17,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Readable } from 'stream';
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -355,6 +356,129 @@ async function registerRoutes(fastify: FastifyInstance): Promise<void> {
         timestamp: new Date().toISOString(),
       });
     }
+  });
+
+  // MCP SSE endpoint - proxy to MCP server
+  // This endpoint handles SSE connections from Claude Desktop/Mobile
+  fastify.get('/mcp/sse', async (request, reply) => {
+    const mcpServerUrl = process.env.MCP_SERVER_URL || 'http://mcp:3001';
+    const targetUrl = `${mcpServerUrl}/sse`;
+
+    try {
+      // Prepare headers for forwarding
+      const headers: Record<string, string> = {};
+
+      // Forward Authorization header if present
+      if (request.headers.authorization) {
+        headers['Authorization'] = request.headers.authorization as string;
+      }
+
+      // Forward Accept header for SSE
+      if (request.headers.accept) {
+        headers['Accept'] = request.headers.accept as string;
+      } else {
+        headers['Accept'] = 'text/event-stream';
+      }
+
+      // Forward other relevant headers
+      if (request.headers['user-agent']) {
+        headers['User-Agent'] = request.headers['user-agent'] as string;
+      }
+
+      // Forward query parameters
+      const queryString = request.url.includes('?') ? request.url.substring(request.url.indexOf('?')) : '';
+      const fullTargetUrl = `${targetUrl}${queryString}`;
+
+      // Forward the request to the MCP server
+      const response = await fetch(fullTargetUrl, {
+        method: 'GET',
+        headers,
+      });
+
+      // Forward the response status and headers
+      reply.status(response.status);
+      
+      // Forward all response headers (important for SSE)
+      response.headers.forEach((value, key) => {
+        // Skip hop-by-hop headers that shouldn't be forwarded
+        const hopByHopHeaders = ['connection', 'keep-alive', 'proxy-authenticate', 
+          'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade'];
+        if (!hopByHopHeaders.includes(key.toLowerCase())) {
+          reply.header(key, value);
+        }
+      });
+
+      // Stream the response body for SSE using Node.js streams
+      if (response.body) {
+        // Convert Web Streams API to Node.js stream for Fastify
+        const reader = response.body.getReader();
+        
+        const nodeStream = new Readable({
+          read() {
+            // This will be called by Fastify when it needs more data
+          },
+        });
+
+        // Read from the fetch response and write to the Node.js stream
+        (async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                nodeStream.push(null); // End the stream
+                break;
+              }
+              nodeStream.push(Buffer.from(value));
+            }
+          } catch (error) {
+            nodeStream.destroy(error instanceof Error ? error : new Error(String(error)));
+          }
+        })();
+
+        return reply.send(nodeStream);
+      }
+
+      return reply.send();
+    } catch (error) {
+      logger.error('Error proxying SSE request to MCP server', {
+        error: error instanceof Error ? error.message : String(error),
+        targetUrl,
+        method: request.method,
+      });
+      return reply.status(502).send({
+        error: 'BadGateway',
+        code: 'BAD_GATEWAY',
+        message: 'Failed to connect to MCP server',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
+  // Handle Claude Desktop's attempt to access resource at discovery path
+  // Some OAuth clients try to access the resource at /.well-known/oauth-protected-resource/mcp/sse
+  fastify.get('/.well-known/oauth-protected-resource/mcp/sse', async (request, reply) => {
+    // Redirect to the actual MCP SSE endpoint
+    return reply.redirect(302, '/mcp/sse');
+  });
+
+  // OPTIONS handler for CORS preflight on MCP SSE endpoint
+  fastify.options('/mcp/sse', async (_request, reply) => {
+    return reply
+      .header('Access-Control-Allow-Origin', '*')
+      .header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+      .header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept')
+      .code(204)
+      .send();
+  });
+
+  // OPTIONS handler for discovery path variant
+  fastify.options('/.well-known/oauth-protected-resource/mcp/sse', async (_request, reply) => {
+    return reply
+      .header('Access-Control-Allow-Origin', '*')
+      .header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+      .header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept')
+      .code(204)
+      .send();
   });
 
   logger.info('Routes registered successfully');
