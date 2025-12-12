@@ -75,6 +75,91 @@ function isEmailAllowed(email: string): boolean {
  */
 export async function registerOAuthRoutes(fastify: FastifyInstance): Promise<void> {
   /**
+   * GET /.well-known/oauth-protected-resource
+   * OAuth Protected Resource Discovery endpoint (RFC 9728)
+   * Returns metadata about this protected resource (Kura Notes API)
+   * 
+   * This enables OAuth clients (like Claude MCP) to automatically discover:
+   * - The resource identifier
+   * - Authorization server information
+   * - Supported scopes and bearer token methods
+   * 
+   * Must be publicly accessible (no authentication required)
+   */
+  fastify.get('/.well-known/oauth-protected-resource', async (request: FastifyRequest, reply: FastifyReply) => {
+    logger.debug('OAuth protected resource discovery request', {
+      url: request.url,
+      host: request.headers.host,
+      forwardedProto: request.headers['x-forwarded-proto'],
+    });
+
+    // Determine base URL from request
+    // Support both direct access and reverse proxy scenarios
+    const host = request.headers.host || `localhost:${config.apiPort}`;
+    
+    // Get protocol: check X-Forwarded-Proto header first (when behind proxy with trustProxy: true),
+    // otherwise default based on environment or use http
+    const forwardedProto = request.headers['x-forwarded-proto'] as string;
+    const protocol = forwardedProto 
+      ? forwardedProto.split(',')[0].trim() // Handle multiple proxies, take first
+      : (config.nodeEnv === 'production' ? 'https' : 'http'); // Default based on environment
+    
+    const baseUrl = `${protocol}://${host}`;
+
+    // Get KOauth issuer (defaults to koauthUrl)
+    const authorizationServer = config.koauthIssuer || config.koauthUrl;
+    
+    // Get JWKS URI (defaults to koauthUrl/.well-known/jwks.json)
+    const jwksUri = config.koauthJwksUrl || `${config.koauthUrl}/.well-known/jwks.json`;
+
+    // RFC 9728 Protected Resource Metadata
+    const discoveryResponse = {
+      // REQUIRED: The protected resource's resource identifier (RFC 9728)
+      resource: baseUrl,
+      
+      // OPTIONAL: List of authorization server issuer identifiers
+      authorization_servers: [authorizationServer],
+      
+      // OPTIONAL: JWKS URI for token verification
+      jwks_uri: jwksUri,
+      
+      // OPTIONAL: List of OAuth 2.0 scopes supported by this protected resource
+      scopes_supported: ['openid', 'profile', 'email'],
+      
+      // OPTIONAL: Methods for presenting bearer tokens to this protected resource
+      bearer_methods_supported: ['header'],
+      
+      // OPTIONAL: URL pointing to human-readable documentation
+      resource_documentation: `${baseUrl}/api/docs`,
+    };
+
+    logger.debug('OAuth protected resource discovery response', {
+      resource: discoveryResponse.resource,
+      authorization_servers: discoveryResponse.authorization_servers,
+    });
+
+    return reply
+      .header('Content-Type', 'application/json')
+      .header('Access-Control-Allow-Origin', '*')
+      .header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+      .header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+      .send(discoveryResponse);
+  });
+
+  /**
+   * OPTIONS /.well-known/oauth-protected-resource
+   * Handle CORS preflight requests
+   */
+  fastify.options('/.well-known/oauth-protected-resource', async (request: FastifyRequest, reply: FastifyReply) => {
+    return reply
+      .header('Access-Control-Allow-Origin', '*')
+      .header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+      .header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+      .code(204)
+      .send();
+  });
+
+  /**
    * GET /.well-known/oauth-authorization-server
    * Redirect to KOauth's authorization server metadata endpoint (RFC 8414)
    * 
