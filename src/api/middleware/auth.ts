@@ -79,7 +79,8 @@ export async function authMiddleware(
   }
 
   // Skip authentication for static files (web interface)
-  const urlPath = request.url.split('?')[0] || ''; // Remove query params
+  const urlParts = request.url.split('?');
+  const urlPath = urlParts[0] ?? ''; // Remove query params
   if (STATIC_FILE_EXTENSIONS.some(ext => urlPath.endsWith(ext)) || urlPath === '/') {
     return;
   }
