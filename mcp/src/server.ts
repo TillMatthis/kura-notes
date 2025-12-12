@@ -566,7 +566,13 @@ async function main() {
     });
   });
 
-  // OAuth Protected Resource Discovery endpoint
+  // Handle CORS preflight requests for discovery endpoint
+  app.options('/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
+    setCORSHeaders(res);
+    res.status(204).send();
+  });
+
+  // OAuth Protected Resource Discovery endpoint (RFC 9728)
   // This enables Claude Custom Connectors to automatically discover OAuth configuration
   // Handle both /mcp/.well-known/... (when behind reverse proxy) and /.well-known/... (direct access)
   app.get('/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
@@ -577,6 +583,9 @@ async function main() {
       protocol: req.protocol,
       headers: req.headers,
     });
+    
+    // Set CORS headers for cross-origin requests (e.g., from Claude web app)
+    setCORSHeaders(res);
     
     // Determine base URL from request or environment variable
     // If MCP_BASE_URL is set, use it; otherwise infer from request
@@ -596,12 +605,27 @@ async function main() {
       }
     }
     
+    // RFC 9728 Protected Resource Metadata
+    // Required: resource
+    // Optional: authorization_servers, scopes_supported, bearer_methods_supported, jwks_uri
     const discoveryResponse = {
-      resource: `${baseUrl}/sse`,  // The protected MCP endpoint
-      authorization_servers: [KOAUTH_URL],  // KOauth server URL
-      jwks_uri: `${KOAUTH_URL}/.well-known/jwks.json`,  // JWKS endpoint for token verification
+      // REQUIRED: The protected resource's resource identifier (RFC 9728)
+      resource: `${baseUrl}/sse`,
+      
+      // OPTIONAL: List of authorization server issuer identifiers
+      authorization_servers: [KOAUTH_URL],
+      
+      // OPTIONAL: JWKS URI for token verification
+      jwks_uri: `${KOAUTH_URL}/.well-known/jwks.json`,
+      
+      // OPTIONAL: List of OAuth 2.0 scopes supported by this protected resource
       scopes_supported: ['openid', 'profile', 'email'],
-      bearer_methods_supported: ['header']  // Bearer token in Authorization header
+      
+      // OPTIONAL: Methods for presenting bearer tokens to this protected resource
+      bearer_methods_supported: ['header'],
+      
+      // OPTIONAL: URL pointing to human-readable documentation for this protected resource
+      resource_documentation: `${baseUrl.replace(/\/mcp$/, '')}/api/docs`,
     };
     
     console.log('OAuth discovery response:', discoveryResponse);
@@ -609,6 +633,12 @@ async function main() {
     res.json(discoveryResponse);
   });
   
+  // Handle CORS preflight requests for discovery endpoint (with /mcp prefix)
+  app.options('/mcp/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
+    setCORSHeaders(res);
+    res.status(204).send();
+  });
+
   // Also handle /mcp/.well-known/... path for reverse proxy compatibility
   app.get('/mcp/.well-known/oauth-protected-resource', (req: Request, res: ExpressResponse) => {
     console.log('OAuth discovery request (with /mcp prefix):', {
@@ -618,15 +648,31 @@ async function main() {
       protocol: req.protocol,
     });
     
+    // Set CORS headers for cross-origin requests
+    setCORSHeaders(res);
+    
     // Determine base URL from request or environment variable
     const baseUrl = MCP_BASE_URL || `${req.protocol}://${req.get('host')}/mcp`;
     
+    // RFC 9728 Protected Resource Metadata
     const discoveryResponse = {
-      resource: `${baseUrl}/sse`,  // The protected MCP endpoint
-      authorization_servers: [KOAUTH_URL],  // KOauth server URL
-      jwks_uri: `${KOAUTH_URL}/.well-known/jwks.json`,  // JWKS endpoint for token verification
+      // REQUIRED: The protected resource's resource identifier (RFC 9728)
+      resource: `${baseUrl}/sse`,
+      
+      // OPTIONAL: List of authorization server issuer identifiers
+      authorization_servers: [KOAUTH_URL],
+      
+      // OPTIONAL: JWKS URI for token verification
+      jwks_uri: `${KOAUTH_URL}/.well-known/jwks.json`,
+      
+      // OPTIONAL: List of OAuth 2.0 scopes supported by this protected resource
       scopes_supported: ['openid', 'profile', 'email'],
-      bearer_methods_supported: ['header']  // Bearer token in Authorization header
+      
+      // OPTIONAL: Methods for presenting bearer tokens to this protected resource
+      bearer_methods_supported: ['header'],
+      
+      // OPTIONAL: URL pointing to human-readable documentation for this protected resource
+      resource_documentation: `${baseUrl.replace(/\/mcp$/, '')}/api/docs`,
     };
     
     console.log('OAuth discovery response (with /mcp prefix):', discoveryResponse);
@@ -652,6 +698,30 @@ async function main() {
       // Direct access or reverse proxy strips prefix
       return `${protocol}://${host}`;
     }
+  }
+
+  // Helper function to set CORS headers for discovery endpoint
+  function setCORSHeaders(res: ExpressResponse): void {
+    // Allow requests from Claude web app and other common origins
+    const origin = res.req?.headers.origin;
+    const allowedOrigins = [
+      'https://claude.ai',
+      'https://claude.com',
+      'https://www.claude.ai',
+      'https://www.claude.com',
+    ];
+    
+    // If origin matches allowed list, use it; otherwise allow all (for discovery)
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      // For discovery endpoints, allow all origins (public metadata)
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   }
 
   // SSE endpoint for MCP with authentication

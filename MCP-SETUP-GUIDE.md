@@ -262,11 +262,28 @@ If you're running KURA locally (not on VPS):
 
 ---
 
-## 📱 Claude Mobile Custom Connector Configuration
+## 📱 Claude Custom Connector Configuration (Web & Mobile)
 
 ### Overview
 
-Claude mobile app supports Custom Connectors via MCP with **OAuth autodiscovery**. Unlike Claude Desktop (which uses STDIO), Claude mobile uses **Streamable HTTP transport** (SSE) with automatic OAuth flow.
+Claude web app and mobile app support Custom Connectors via MCP with **OAuth autodiscovery**. Unlike Claude Desktop (which uses STDIO), Claude web/mobile uses **Streamable HTTP transport** (SSE) with automatic OAuth flow.
+
+**📖 For complete setup instructions, see:** [`docs/CLAUDE-CONNECTOR-SETUP.md`](./docs/CLAUDE-CONNECTOR-SETUP.md)
+
+### Quick Setup Summary
+
+1. **Register OAuth Client in KOauth** with redirect URIs:
+   - Web: `https://claude.ai/api/mcp/auth_callback`
+   - Desktop: `http://127.0.0.1:6277/callback` (and 6278, 6279)
+
+2. **Configure in Claude:**
+   - Settings → Connectors → Add Custom Connector
+   - Server URL: `https://kura.tillmaessen.de/mcp/sse`
+   - OAuth Client ID and Secret from KOauth
+
+3. **Connect:** Click Connect and complete OAuth flow
+
+### Claude Mobile Custom Connector Configuration
 
 ### How OAuth Autodiscovery Works
 
@@ -309,13 +326,16 @@ Claude mobile app supports Custom Connectors via MCP with **OAuth autodiscovery*
    }
    ```
 
-3. **Configure in Claude Mobile App**:
-   - Open Claude mobile app
+3. **Configure in Claude Web/Mobile App**:
+   - Open Claude web app or mobile app
    - Go to Settings → Connectors → Add Custom Connector
    - Enter the MCP server URL: `https://kura.tillmaessen.de/mcp/sse`
+   - Enter OAuth Client ID and Secret (from KOauth)
    - Claude will automatically discover OAuth configuration
-   - You'll be redirected to KOauth to authenticate
+   - Click Connect and complete OAuth flow
    - After authentication, the connector will be ready to use
+
+**📖 Detailed instructions:** See [`docs/CLAUDE-CONNECTOR-SETUP.md`](./docs/CLAUDE-CONNECTOR-SETUP.md) for step-by-step guide with screenshots and troubleshooting.
 
 ### Manual Bearer Token (Alternative)
 
@@ -496,8 +516,12 @@ If SSE connections timeout:
 - **MCP Specification**: https://modelcontextprotocol.io/specification/draft
 - **MCP SDK Documentation**: https://github.com/modelcontextprotocol/typescript-sdk
 - **Claude Desktop Documentation**: https://claude.ai/docs
+- **Claude Custom Connectors**: https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp
 - **KURA Notes MCP Setup**: `MCP-SETUP.md` (detailed technical documentation)
 - **KURA Notes Deployment**: `DEPLOYMENT.md` (VPS deployment guide)
+- **Claude Connector Setup**: `docs/CLAUDE-CONNECTOR-SETUP.md` (complete setup guide)
+- **Claude Connector Testing**: `docs/CLAUDE-CONNECTOR-TESTING.md` (testing checklist)
+- **Debugging Guide**: `DEBUG-CLAUDE-CONNECTOR.md` (troubleshooting)
 
 ---
 
