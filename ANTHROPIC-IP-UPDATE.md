@@ -50,27 +50,83 @@ This CIDR range includes:
 
 ---
 
-## Recommended Security Improvement
+## Security Approach
 
-While our current setup will continue to work, we **SHOULD** restrict MCP access to only Anthropic's IP addresses for better security.
+### 🎯 **IMPORTANT: You Already Have Better Security!**
 
-### Option 1: Simple (Keep current setup) ⚠️
-**Action:** None required
-**Security:** Low - anyone can attempt to connect to your MCP server
-**Compatibility:** Works with all current and future Anthropic IPs
+Your MCP server already has **KOauth authentication** with OAuth 2.0 and API key support. This is **BETTER than IP restrictions** because:
 
-### Option 2: Secure (Recommended) ✅
-**Action:** Implement IP-based restrictions
-**Security:** High - only Anthropic can connect to MCP endpoint
-**Compatibility:** Requires maintenance when IPs change
+✅ **Scalable** - Works with unlimited clients (Anthropic, future services, etc.)
+✅ **Flexible** - No need to track changing IP addresses
+✅ **Secure** - Each client has unique credentials you can revoke
+✅ **Auditable** - Know exactly who accessed what and when
 
-**We recommend Option 2** - restricting access to Anthropic IPs only.
+### Recommendation: Use Application-Level Authentication (Not IP Restrictions)
+
+**Option 1: Application Authentication (RECOMMENDED) ✅**
+- **Action:** Use your existing KOauth integration
+- **Security:** High - Only authenticated clients can access
+- **Compatibility:** Works with Anthropic and future services
+- **Maintenance:** None - authentication handles everything
+- **Best for:** Multi-service MCP access (your use case!)
+
+**Option 2: IP Restrictions (NOT RECOMMENDED) ⚠️**
+- **Action:** Implement IP-based firewall rules
+- **Security:** Medium - IPs can be spoofed, doesn't authenticate
+- **Compatibility:** Only works for Anthropic, blocks future clients
+- **Maintenance:** High - must update when IPs change
+- **Best for:** Single-client scenarios only
+
+**We recommend Option 1** - using your existing application authentication.
 
 ---
 
 ## Implementation Options
 
-### A. Application-Level Restriction (Recommended)
+### ✅ RECOMMENDED: Application-Level Authentication (Already Configured!)
+
+**You don't need to do anything!** Your MCP server already has KOauth authentication that handles security.
+
+**Current Authentication Flow:**
+1. Client (Anthropic, future services) makes request to MCP endpoint
+2. MCP server validates OAuth token or API key via KOauth
+3. If valid → Request processed with user isolation
+4. If invalid → Request rejected (401 Unauthorized)
+
+**For Anthropic Specifically:**
+1. **Create dedicated API key** for Anthropic in your KOauth system
+2. **Configure Claude.ai** MCP settings with:
+   - URL: `https://mcp.tillmaessen.de/sse`
+   - Authentication: Your API key/token
+3. **Monitor usage** via your MCP logs
+
+**Recommended Caddyfile:**
+See `Caddyfile.recommended` - it's simple and secure:
+- No IP restrictions needed
+- Authentication handled by application
+- Works with multiple clients
+
+**Optional Enhancement - Rate Limiting:**
+Add UFW rate limiting to prevent abuse:
+```bash
+# Remove current 443 rule
+sudo ufw delete allow 443/tcp
+
+# Add with rate limiting
+sudo ufw limit 443/tcp comment 'HTTPS with rate limit'
+sudo ufw reload
+```
+
+---
+
+### ⚠️ ALTERNATIVE (Not Recommended): IP-Based Restrictions
+
+**Only use this if:**
+- You want to restrict to Anthropic ONLY (no future clients)
+- You're willing to maintain IP rules when they change
+- You don't trust application-level authentication alone
+
+### A. Caddy IP Restriction (If You Really Want IP Filtering)
 
 Restrict access in Caddy configuration to only allow Anthropic IPs for the `/mcp*` endpoint.
 

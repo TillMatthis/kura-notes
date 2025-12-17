@@ -1,0 +1,32 @@
+# Recommended Caddyfile for KURA Notes
+# Security approach: Application-level authentication (not IP restrictions)
+# Your MCP server already validates OAuth tokens and API keys via KOauth
+
+kura.tillmaessen.de {
+	@notapi {
+		not path /api/*
+	}
+
+	# MCP endpoint - authentication handled by KOauth integration
+	# Accessible to all services (Anthropic, future clients, etc.)
+	reverse_proxy /mcp* localhost:3001
+
+	# Main API - reverse proxy everything else
+	reverse_proxy localhost:3000
+}
+
+auth.tillmaessen.de {
+	# KOauth authentication service
+	reverse_proxy localhost:3002
+}
+
+# MCP endpoint on dedicated subdomain
+# Maps to the same MCP server as kura.tillmaessen.de/mcp*
+mcp.tillmaessen.de {
+	# Authentication handled by application (KOauth + JWT)
+	# Each client needs valid OAuth token or API key
+	reverse_proxy localhost:3001
+}
+
+# Refer to the Caddy docs for more information:
+# https://caddyserver.com/docs/caddyfile
