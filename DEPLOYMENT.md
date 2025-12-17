@@ -156,6 +156,17 @@ systemctl disable nftables
 ufw status verbose
 ```
 
+**⚠️ Security Note - Anthropic MCP IP Restrictions:**
+
+The configuration above allows **all IPs** to access port 443 (HTTPS). For better security, consider restricting MCP endpoint access to only Anthropic's IP addresses.
+
+See **[ANTHROPIC-IP-UPDATE.md](ANTHROPIC-IP-UPDATE.md)** for:
+- Anthropic's IP address ranges
+- Implementation guide (Caddy-based restrictions recommended)
+- Helper script: `scripts/update-anthropic-ips.sh`
+
+**Action Required by January 15, 2026** to maintain MCP server connectivity with new Anthropic IPs.
+
 ### 7. Build and Start Containers
 
 ```bash
@@ -458,15 +469,31 @@ docker run --rm \
 ✅ Only necessary ports open (22, 80, 443)
 
 ### Known Security Gaps (Phase 2 Improvements)
-⚠️ Web UI publicly accessible (no authentication)  
-⚠️ No rate limiting  
-⚠️ No IP whitelisting  
-⚠️ CORS set to "*" (allows all origins)  
+⚠️ Web UI publicly accessible (no authentication)
+⚠️ No rate limiting
+⚠️ No IP whitelisting for MCP endpoint
+⚠️ CORS set to "*" (allows all origins)
+
+### Anthropic MCP IP Security (Action Required)
+**Deadline:** January 15, 2026
+
+⚠️ **Current:** MCP endpoint accessible from any IP address
+✅ **Recommended:** Restrict MCP access to Anthropic IPs only
+
+**Implementation:**
+See [ANTHROPIC-IP-UPDATE.md](ANTHROPIC-IP-UPDATE.md) for detailed instructions:
+- Option A: Caddy-based restrictions (recommended - allows main API from anywhere)
+- Option B: UFW-based restrictions (more restrictive - locks down entire HTTPS port)
+- Helper script: `scripts/update-anthropic-ips.sh`
+
+**Anthropic IP Ranges:**
+- New: `160.79.104.0/21` (add by Jan 15, 2026)
+- Legacy: 5 individual IPs (remove after April 1, 2026)
 
 ### Recommended Phase 2 Security Enhancements
+- **[Priority]** Implement IP restrictions for MCP endpoint (see above)
 - Add basic authentication to System Caddy for web UI
 - Implement rate limiting in Caddy or application layer
-- Consider IP whitelisting for admin access
 - Restrict CORS to specific domains
 - Set up fail2ban for SSH protection
 - Regular security updates via unattended-upgrades
